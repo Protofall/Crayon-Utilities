@@ -1,29 +1,22 @@
 
+EXE = DtexToRGBA8888
 EXT =
-# CPPFLAGS = -std=gnu++11 -lpng
+CPPFLAGS = -std=gnu++11 -lpng
 CFLAGS = -lpng
 
-EXE = DtexToRGBA8888
-
-# CPPFILES = $(wildcard *.cpp)
+CPPFILES = $(wildcard *.cpp)
 CFILES = $(wildcard *.c)
-# OBJS = $(CPPFILES:%.cpp=%.o) $(CFILES:%.c=%.o)
-# OBJS = $(CFILES:%.c=%.o)
-OBJS = png_assist.o DtexToRGBA8888.o
+OBJS = $(CPPFILES:%.cpp=%.o) $(CFILES:%.c=%.o)
 
 .PHONY: all clean run dtex_examples
 
 all: clean dtex_examples $(EXE)
 
-two: clean $(EXE)
-
 $(EXE): $(OBJS)
-	echo $(OBJS)
 	gcc -o $(EXE) $(OBJS) -lpng
-	# g++ -o $(EXE) $(OBJS) -std=gnu++11 -lpng
 
-# %.o: %.cpp
-	# g++ $(CPPFLAGS) -c $<
+%.o: %.cpp
+	g++ $(CPPFLAGS) -c $<
 
 %.o: %.c
 	echo $(OBJS)
@@ -64,7 +57,7 @@ run:
 
 dtex_examples:
 	texconv -i "textures/source/cow.png" -o "textures/cow_RGB565.dtex" -f "RGB565"
-	texconv -i "textures/source/cow.png" -o "textures/cow_RGB565_m.dtex" -f "RGB565" -mipmap
+	# texconv -i "textures/source/cow.png" -o "textures/cow_RGB565_m.dtex" -f "RGB565" -mipmap
 	texconv -i "textures/source/cow.png" -o "textures/cow_YUV422.dtex" -f "YUV422"
 	texconv -i "textures/source/cow.png" -o "textures/cow_YUV422_c.dtex" -f "YUV422" -compress	#Despite the Sega docs saying you can't compress YUV422, you can
 	texconv -i "textures/source/cow.png" -o "textures/cow_YUV422_s.dtex" -f "YUV422" -stride 4	#128/32 = 4

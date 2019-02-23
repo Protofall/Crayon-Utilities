@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "png_assist.h"
 
@@ -111,7 +112,6 @@ int32_t bound(int32_t min, int32_t val, int32_t max){
 	return val;
 }
 
-//The image appears to be abit dull. Need to check if this is how it should be or the texconv preview isn't accurate
 uint32_t yuv444_to_rgba8888(uint8_t y, uint8_t u, uint8_t v){
 	//I think this is fine since a uint8_t's range is 0 to 255 and I think a int8_t's range is -128 to 127
 	int8_t u2 = u - 128;
@@ -126,10 +126,7 @@ uint32_t yuv444_to_rgba8888(uint8_t y, uint8_t u, uint8_t v){
 	return (R << 24) + (G << 16) + (B << 8) + 255;	//RGBA with full alpha
 }
 
-//Note YUV422 doesn't mean 4 + 2 + 2 bits per pixel (1 bytes per pixel), its actually a ration. 4:2:2
-
 //To convert from YUV422 to RGB888, we first need to convert to YUV444
-
 //YUV444    3 bytes per pixel     (12 bytes per 4 pixels)
 //YUV422    4 bytes per 2 pixels  ( 8 bytes per 4 pixels)
 void yuv422_to_rgba8888(dtex_header_t * dtex_header, uint32_t * dtex_buffer){
@@ -180,11 +177,11 @@ uint8_t load_dtex(char * texture_path, uint32_t ** rgba8888_buffer, uint16_t * h
 	if(memcmp(dtex_header.magic, "DTEX", 4)){fclose(texture_file); return 3;}
 
 	uint8_t stride_setting = bit_extracted(dtex_header.type, 5, 0);
-	uint8_t strided = dtex_header.type & (1 << 25);
-	uint8_t twiddled = !(dtex_header.type & (1 << 26));	//Note this flag is TRUE if twiddled
+	bool strided = dtex_header.type & (1 << 25);
+	bool twiddled = !(dtex_header.type & (1 << 26));	//Note this flag is TRUE if twiddled
 	uint8_t pixel_format = bit_extracted(dtex_header.type, 3, 27);
-	uint8_t compressed = dtex_header.type & (1 << 30);
-	uint8_t mipmapped = dtex_header.type & (1 << 31);
+	bool compressed = dtex_header.type & (1 << 30);
+	bool mipmapped = dtex_header.type & (1 << 31);
 
 	//'type' contains the various flags and the pixel format packed together:
 	// bits 0-4 : Stride setting.
@@ -230,22 +227,22 @@ uint8_t load_dtex(char * texture_path, uint32_t ** rgba8888_buffer, uint16_t * h
 
 	uint8_t bpc[4];
 	uint8_t bpp;
-	uint8_t rgb = 0; uint8_t paletted = 0; uint8_t yuv = 0; uint8_t bumpmap = 0;
+	bool rgb = false; bool paletted = false; bool yuv = false; bool bumpmap = false;
 	switch(pixel_format){
 		case 0:
-			bpc[0] = 1; bpc[1] = 5; bpc[2] = 5; bpc[3] = 5; bpp = 16; rgb = 1; break;
+			bpc[0] = 1; bpc[1] = 5; bpc[2] = 5; bpc[3] = 5; bpp = 16; rgb = true; break;
 		case 1:
-			bpc[0] = 0; bpc[1] = 5; bpc[2] = 6; bpc[3] = 5; bpp = 16; rgb = 1; break;
+			bpc[0] = 0; bpc[1] = 5; bpc[2] = 6; bpc[3] = 5; bpp = 16; rgb = true; break;
 		case 2:
-			bpc[0] = 4; bpc[1] = 4; bpc[2] = 4; bpc[3] = 4; bpp = 16; rgb = 1; break;
+			bpc[0] = 4; bpc[1] = 4; bpc[2] = 4; bpc[3] = 4; bpp = 16; rgb = true; break;
 		case 3:
-			bpp = 16; yuv = 1; break;
+			bpp = 16; yuv = true; break;
 		case 4:
-			bpp = 16; bumpmap = 1; break;
+			bpp = 16; bumpmap = true; break;
 		case 5:
-			bpp = 4; paletted = 1; break;
+			bpp = 4; paletted = true; break;
 		case 6:
-			bpp = 8; paletted = 1; break;
+			bpp = 8; paletted = true; break;
 		default:
 			printf("Pixel format %d doesn't exist\n", pixel_format);
 			fclose(texture_file);
@@ -531,12 +528,10 @@ void invalid_input(){
 	return;
 }
 
-//Add argb8888/rgba8888 toggle.
-	//rgba8888 is the default
-int main(int argC, char *argV[]){	//argC is params + prog name count. So in "./prog lol 4" argC = 3 ("4" is param index 2)
-	uint8_t flag_binary_preview = 0;
+int main(int argC, char *argV[]){
+	bool flag_binary_preview = false;
 	uint8_t binary_index = 0;
-	uint8_t flag_png_preview = 0;
+	bool flag_png_preview = false;
 	uint8_t png_index = 0;
 	for(int i = 1; i < argC; i++){
 		//1st param is reserved for the dtex name
@@ -550,13 +545,13 @@ int main(int argC, char *argV[]){	//argC is params + prog name count. So in "./p
 				invalid_input();
 				return 1;
 			}
-			flag_binary_preview = 1;
+			flag_binary_preview = true;
 			binary_index = i + 1;
 		}
 
 		if(!strcmp(argV[i], "--png")){
 			if(i + 1 < argC && strlen(argV[i + 1]) >= 4 && strcmp(argV[i + 1] + strlen(argV[i + 1]) - 4, ".png") == 0){
-				flag_png_preview = 1;
+				flag_png_preview = true;
 				png_index = i + 1;
 			}
 			else{
@@ -582,6 +577,7 @@ int main(int argC, char *argV[]){	//argC is params + prog name count. So in "./p
 		return 1;
 	}
 
+	//Output a binary if requested
 	if(flag_binary_preview){
 		FILE * f_binary = fopen(argV[binary_index], "wb");
 		if(f_binary == NULL){
