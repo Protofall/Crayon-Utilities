@@ -1,22 +1,33 @@
 
 EXT =
-CPPFLAGS = -std=gnu++11 -lpng
+# CPPFLAGS = -std=gnu++11 -lpng
+CFLAGS = -lpng
 
-CC = g++
 EXE = DtexToRGBA8888
 
-CPPFILES = $(wildcard *.cpp)
-OBJS = $(CPPFILES:%.cpp=%.o)
+# CPPFILES = $(wildcard *.cpp)
+CFILES = $(wildcard *.c)
+# OBJS = $(CPPFILES:%.cpp=%.o) $(CFILES:%.c=%.o)
+# OBJS = $(CFILES:%.c=%.o)
+OBJS = png_assist.o DtexToRGBA8888.o
 
 .PHONY: all clean run dtex_examples
 
 all: clean dtex_examples $(EXE)
 
-$(EXE): $(OBJS)
-	$(CC) -o $(EXE) $(OBJS) -std=gnu++11 -lpng
+two: clean $(EXE)
 
-%.o: %.cpp
-	$(CC) $(CPPFLAGS) -c $<
+$(EXE): $(OBJS)
+	echo $(OBJS)
+	gcc -o $(EXE) $(OBJS) -lpng
+	# g++ -o $(EXE) $(OBJS) -std=gnu++11 -lpng
+
+# %.o: %.cpp
+	# g++ $(CPPFLAGS) -c $<
+
+%.o: %.c
+	echo $(OBJS)
+	gcc $(CFLAGS) -c $<
 
 clean:
 	rm -f *.o $(EXE)$(EXT)

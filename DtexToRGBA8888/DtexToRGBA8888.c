@@ -1,7 +1,6 @@
-#include <iostream>
-#include <string>
-#include <fstream>
-#include <cstdint>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
 
 #include "png_assist.h"
 
@@ -181,11 +180,11 @@ uint8_t load_dtex(char * texture_path, uint32_t ** rgba8888_buffer, uint16_t * h
 	if(memcmp(dtex_header.magic, "DTEX", 4)){fclose(texture_file); return 3;}
 
 	uint8_t stride_setting = bit_extracted(dtex_header.type, 5, 0);
-	bool strided = dtex_header.type & (1 << 25);
-	bool twiddled = !(dtex_header.type & (1 << 26));	//Note this flag is TRUE if twiddled
+	uint8_t strided = dtex_header.type & (1 << 25);
+	uint8_t twiddled = !(dtex_header.type & (1 << 26));	//Note this flag is TRUE if twiddled
 	uint8_t pixel_format = bit_extracted(dtex_header.type, 3, 27);
-	bool compressed = dtex_header.type & (1 << 30);
-	bool mipmapped = dtex_header.type & (1 << 31);
+	uint8_t compressed = dtex_header.type & (1 << 30);
+	uint8_t mipmapped = dtex_header.type & (1 << 31);
 
 	//'type' contains the various flags and the pixel format packed together:
 	// bits 0-4 : Stride setting.
@@ -231,22 +230,22 @@ uint8_t load_dtex(char * texture_path, uint32_t ** rgba8888_buffer, uint16_t * h
 
 	uint8_t bpc[4];
 	uint8_t bpp;
-	bool rgb = false; bool paletted = false; bool yuv = false; bool bumpmap = false;
+	uint8_t rgb = 0; uint8_t paletted = 0; uint8_t yuv = 0; uint8_t bumpmap = 0;
 	switch(pixel_format){
 		case 0:
-			bpc[0] = 1; bpc[1] = 5; bpc[2] = 5; bpc[3] = 5; bpp = 16; rgb = true; break;
+			bpc[0] = 1; bpc[1] = 5; bpc[2] = 5; bpc[3] = 5; bpp = 16; rgb = 1; break;
 		case 1:
-			bpc[0] = 0; bpc[1] = 5; bpc[2] = 6; bpc[3] = 5; bpp = 16; rgb = true; break;
+			bpc[0] = 0; bpc[1] = 5; bpc[2] = 6; bpc[3] = 5; bpp = 16; rgb = 1; break;
 		case 2:
-			bpc[0] = 4; bpc[1] = 4; bpc[2] = 4; bpc[3] = 4; bpp = 16; rgb = true; break;
+			bpc[0] = 4; bpc[1] = 4; bpc[2] = 4; bpc[3] = 4; bpp = 16; rgb = 1; break;
 		case 3:
-			bpp = 16; yuv = true; break;
+			bpp = 16; yuv = 1; break;
 		case 4:
-			bpp = 16; bumpmap = true; break;
+			bpp = 16; bumpmap = 1; break;
 		case 5:
-			bpp = 4; paletted = true; break;
+			bpp = 4; paletted = 1; break;
 		case 6:
-			bpp = 8; paletted = true; break;
+			bpp = 8; paletted = 1; break;
 		default:
 			printf("Pixel format %d doesn't exist\n", pixel_format);
 			fclose(texture_file);
@@ -535,9 +534,9 @@ void invalid_input(){
 //Add argb8888/rgba8888 toggle.
 	//rgba8888 is the default
 int main(int argC, char *argV[]){	//argC is params + prog name count. So in "./prog lol 4" argC = 3 ("4" is param index 2)
-	bool flag_binary_preview = false;
+	uint8_t flag_binary_preview = 0;
 	uint8_t binary_index = 0;
-	bool flag_png_preview = false;
+	uint8_t flag_png_preview = 0;
 	uint8_t png_index = 0;
 	for(int i = 1; i < argC; i++){
 		//1st param is reserved for the dtex name
@@ -551,13 +550,13 @@ int main(int argC, char *argV[]){	//argC is params + prog name count. So in "./p
 				invalid_input();
 				return 1;
 			}
-			flag_binary_preview = true;
+			flag_binary_preview = 1;
 			binary_index = i + 1;
 		}
 
 		if(!strcmp(argV[i], "--png")){
 			if(i + 1 < argC && strlen(argV[i + 1]) >= 4 && strcmp(argV[i + 1] + strlen(argV[i + 1]) - 4, ".png") == 0){
-				flag_png_preview = true;
+				flag_png_preview = 1;
 				png_index = i + 1;
 			}
 			else{

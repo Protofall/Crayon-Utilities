@@ -1,10 +1,10 @@
 #ifndef PNG_ASSIST_H
 #define PNG_ASSIST_H
 
-#include <iostream>
-#include <stdlib.h>
-#include <stdio.h>
 #include <png.h>
+#include <stdlib.h>
+#include <stdint.h>
+// #include <stdio.h>
 
 typedef struct png_details{
 	int width, height;
