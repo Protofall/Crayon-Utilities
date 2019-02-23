@@ -1,6 +1,6 @@
 #include "png_assist.h"
 
-void read_png_file(char *filename, png_details * p_det){
+void read_png_file(char *filename, png_details_t * p_det){
 	FILE *fp = fopen(filename, "rb");
 
 	png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
@@ -73,7 +73,7 @@ void read_png_file(char *filename, png_details * p_det){
 	fclose(fp);
 }
 
-void free_png_texture_buffer(png_details * p_det){
+void free_png_texture_buffer(png_details_t * p_det){
 	for(int y = 0; y < p_det->height; y++){
 		free(p_det->row_pointers[y]);
 	}
@@ -82,12 +82,11 @@ void free_png_texture_buffer(png_details * p_det){
 	return;
 }
 
-void write_png_file(char *filename, png_details * p_det){
+void write_png_file(char *filename, png_details_t * p_det){
 	int y;
 	FILE *fp = NULL;
 	png_structp png_ptr = NULL;
 	png_infop info_ptr = NULL;
-	// png_bytep row = NULL;
 
 	//Open file for writing (binary mode)
 	fp = fopen(filename, "wb");
@@ -133,24 +132,12 @@ void write_png_file(char *filename, png_details * p_det){
 	fclose(fp);
 }
 
-//void process_png_file(png_details * p_det){
-//	for(int y = 0; y < p_det->height; y++){
-//		for(int x = 0; x < p_det->width; x++){
-//			png_bytep px = &(p_det->row_pointers[y][x * 4]);
-//			// Do something awesome for each pixel here...
-//			// printf("%4d, %4d = RGBA(%3d, %3d, %3d, %3d)\n", x, y, px[0], px[1], px[2], px[3]);
-//			px[0] = 255;
-//		}
-//	}
-//}
-
-
 // k lots of 1's bitwise and with your number moved right by p bits
 int bit_extracted(uint32_t number, int k, int p){
 	return (((1 << k) - 1) & (number >> p)); 
 }
 
-uint8_t rgba8888_to_png_details(uint32_t * pixel_data, int height, int width, png_details * p_det){
+uint8_t rgba8888_to_png_details(uint32_t * pixel_data, int height, int width, png_details_t * p_det){
 	p_det->height = height;
 	p_det->width = width;
 

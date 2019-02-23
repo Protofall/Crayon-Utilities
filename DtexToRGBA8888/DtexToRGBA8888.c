@@ -1,7 +1,7 @@
-#include <iostream>
-#include <string>
-#include <fstream>
-#include <cstdint>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 #include "png_assist.h"
 
@@ -112,7 +112,6 @@ int32_t bound(int32_t min, int32_t val, int32_t max){
 	return val;
 }
 
-//The image appears to be abit dull. Need to check if this is how it should be or the texconv preview isn't accurate
 uint32_t yuv444_to_rgba8888(uint8_t y, uint8_t u, uint8_t v){
 	//I think this is fine since a uint8_t's range is 0 to 255 and I think a int8_t's range is -128 to 127
 	int8_t u2 = u - 128;
@@ -127,10 +126,7 @@ uint32_t yuv444_to_rgba8888(uint8_t y, uint8_t u, uint8_t v){
 	return (R << 24) + (G << 16) + (B << 8) + 255;	//RGBA with full alpha
 }
 
-//Note YUV422 doesn't mean 4 + 2 + 2 bits per pixel (1 bytes per pixel), its actually a ration. 4:2:2
-
 //To convert from YUV422 to RGB888, we first need to convert to YUV444
-
 //YUV444    3 bytes per pixel     (12 bytes per 4 pixels)
 //YUV422    4 bytes per 2 pixels  ( 8 bytes per 4 pixels)
 void yuv422_to_rgba8888(dtex_header_t * dtex_header, uint32_t * dtex_buffer){
@@ -532,9 +528,7 @@ void invalid_input(){
 	return;
 }
 
-//Add argb8888/rgba8888 toggle.
-	//rgba8888 is the default
-int main(int argC, char *argV[]){	//argC is params + prog name count. So in "./prog lol 4" argC = 3 ("4" is param index 2)
+int main(int argC, char *argV[]){
 	bool flag_binary_preview = false;
 	uint8_t binary_index = 0;
 	bool flag_png_preview = false;
@@ -583,6 +577,7 @@ int main(int argC, char *argV[]){	//argC is params + prog name count. So in "./p
 		return 1;
 	}
 
+	//Output a binary if requested
 	if(flag_binary_preview){
 		FILE * f_binary = fopen(argV[binary_index], "wb");
 		if(f_binary == NULL){

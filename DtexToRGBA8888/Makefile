@@ -1,22 +1,26 @@
 
+EXE = DtexToRGBA8888
 EXT =
 CPPFLAGS = -std=gnu++11 -lpng
-
-CC = g++
-EXE = DtexToRGBA8888
+CFLAGS = -lpng
 
 CPPFILES = $(wildcard *.cpp)
-OBJS = $(CPPFILES:%.cpp=%.o)
+CFILES = $(wildcard *.c)
+OBJS = $(CPPFILES:%.cpp=%.o) $(CFILES:%.c=%.o)
 
 .PHONY: all clean run dtex_examples
 
 all: clean dtex_examples $(EXE)
 
 $(EXE): $(OBJS)
-	$(CC) -o $(EXE) $(OBJS) -std=gnu++11 -lpng
+	gcc -o $(EXE) $(OBJS) -lpng
 
 %.o: %.cpp
-	$(CC) $(CPPFLAGS) -c $<
+	g++ $(CPPFLAGS) -c $<
+
+%.o: %.c
+	echo $(OBJS)
+	gcc $(CFLAGS) -c $<
 
 clean:
 	rm -f *.o $(EXE)$(EXT)
@@ -53,7 +57,7 @@ run:
 
 dtex_examples:
 	texconv -i "textures/source/cow.png" -o "textures/cow_RGB565.dtex" -f "RGB565"
-	texconv -i "textures/source/cow.png" -o "textures/cow_RGB565_m.dtex" -f "RGB565" -mipmap
+	# texconv -i "textures/source/cow.png" -o "textures/cow_RGB565_m.dtex" -f "RGB565" -mipmap
 	texconv -i "textures/source/cow.png" -o "textures/cow_YUV422.dtex" -f "YUV422"
 	texconv -i "textures/source/cow.png" -o "textures/cow_YUV422_c.dtex" -f "YUV422" -compress	#Despite the Sega docs saying you can't compress YUV422, you can
 	texconv -i "textures/source/cow.png" -o "textures/cow_YUV422_s.dtex" -f "YUV422" -stride 4	#128/32 = 4
