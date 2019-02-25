@@ -1,7 +1,8 @@
 #include "png_assist.h"
 
-void read_png_file(char *filename, png_details_t * p_det){
+int read_png_file(char *filename, png_details_t * p_det){
 	FILE *fp = fopen(filename, "rb");
+	if(!fp){return 1;}
 
 	png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
 	if(!png){abort();}
@@ -71,6 +72,8 @@ void read_png_file(char *filename, png_details_t * p_det){
     info = NULL;
 
 	fclose(fp);
+
+	return 0;
 }
 
 void free_png_texture_buffer(png_details_t * p_det){

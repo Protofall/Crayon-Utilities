@@ -522,7 +522,6 @@ void invalid_input(){
 
 	printf("Please not the following stuff isn't supported:\n");
 	printf("\t-BUMPMAP pixel format\n");
-	printf("\t-Compressed\n");
 	printf("\t-Mipmapped\n");
 
 	return;

@@ -1,5 +1,5 @@
 
-EXE = VmuSavefileIconCreator
+EXE = VmuSfIconCreator
 EXT =
 CPPFLAGS = -std=gnu++11 -lpng
 CFLAGS = -lpng
@@ -24,9 +24,6 @@ $(EXE): $(OBJS)
 
 clean:
 	rm -f *.o $(EXE)$(EXT)
-	rm -f textures/*.png
-	rm -f textures/*.dtex
-	rm -f textures/*.dtex.pal
 	rm -f *.bin
 
 run:

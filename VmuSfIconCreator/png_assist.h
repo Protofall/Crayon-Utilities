@@ -17,7 +17,7 @@ typedef struct png_details{
 
 //The content of these functions comes from this post on github by niw
 	//https://gist.github.com/niw/5963798
-void read_png_file(char *filename, png_details_t * p_det);
+int read_png_file(char *filename, png_details_t * p_det);
 void free_png_texture_buffer(png_details_t * p_det);
 void write_png_file(char *filename, png_details_t * p_det);
 
