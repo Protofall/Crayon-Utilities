@@ -20,33 +20,86 @@ bool string_equals(char * a, char * b){
 	return !strcmp(a, b);
 }
 
-// uint8_t png_to_dc_savefile_binary(uint8_t input_image_index_start, uint8_t num_frames,
-// 		uint8_t output_image_index, uint8_t output_palette_index, char * argV[]){
-// 	uint32_t * output_image;
-// 	// uint32_t * output_image = malloc(sizeof(uint32_t) * num_frames);
-// 	uint16_t * output_palette = malloc(sizeof(uint16_t) * 16);
-// 	png_details_t p_det;
+//Takes all png's listed and makes one long binary. I always store it in a 1MB buffer
+	//because 32 * 32 * 256 ("Max frames") * 4 (Bytes in RGBA8888) = 1MB
+	//Do note that you would never use this whole buffer because the VMUs only have
+	//200 Blocks of data (512 Bytes per block) and one frame of an icon is 1 Block
+	//and also due to how I take input, the input_image start/end difference can only go
+	//up to 253 frames. I don't see this is a problem because why would you want this many frames
+	//and a 1MB buffer is nothing to modern PC running this program so its fine to over allocate.
+uint8_t pngs_to_one_binary(uint8_t in_img_index_start, uint8_t in_img_index_end, uint8_t output_image_index,
+	uint8_t output_palette_index, uint32_t ** input_image, uint16_t * height, char ** argV){
 
-// 	//malloc enough space for "num_frames" amount of uint32_t pointers. Have a single png_details struct at a time
-// 	if(num_frames == 1){
-// 		//If the dimension of any of the pngs isn't 32-by-32, then call invalid_input();
-// 	}
-// 	else{
-// 		;
-// 	}
+	*input_image = malloc(sizeof(uint32_t) * 32 * 32 * 256);
+	uint32_t * current_image = *input_image;
+	if(!(*input_image)){printf("Ran out of memory. Terminating now\n"); return 1;}
+	png_details_t p_det;
 
-// 	// 1, 0, 1, 4, 7, 0, 2
+	uint8_t num_frames = in_img_index_end - in_img_index_start + 1;
+	// uint16_t height = 0;
 
-// 	free(output_image);
-// 	free(output_palette);
-// 	return 0;
-// }
+	for(int i = 0; i < num_frames; i++){
+		printf("File is %s\n", argV[in_img_index_start + i]);
+		if(read_png_file(argV[in_img_index_start + i], &p_det)){printf("File %s couldn't be read. Terminating now\n", argV[in_img_index_start + i]); return 2;}
+		if(p_det.width != 32 || p_det.height % 32 != 0){
+			printf("%s has incorrect height/width\nWidth should be 32 and height a multiple of 32\nThis image's width is %d and height is %d\n",
+				argV[in_img_index_start], p_det.width, p_det.height);
+			return 3;
+		}
+		*height += p_det.height;
+		if(*height > 256 * 32){
+			printf("Combined PNG height too long for buffer. Terminating program\n");
+			return 3;
+		}
 
-uint8_t png_to_argb4444_4BPP(png_details_t * p_det, uint32_t * image_buffer, uint16_t * palette_buffer){
-	;
+		for(int y = 0; y < p_det.height; y++){
+			for(int x = 0; x < p_det.width; x++){
+				png_bytep px = &(p_det.row_pointers[y][x * 4]);
+				current_image[0] = (px[0] << 24) + (px[1] << 16) + (px[2] << 8) + px[3];
+				// memcpy(&current_image[0], &p_det.row_pointers[y][x * 4], 4);	//Byte order is wrong when using this method
+				current_image++;
+			}
+		}
+
+		free_png_texture_buffer(&p_det);
+	}
+
+	//This was used for debugging
+	if(rgba8888_to_png_details(*input_image, *height, 32, &p_det)){return 190;}
+	write_png_file("test.png", &p_det);	//Image looks all messed up for some reason
+
+	return 0;
 }
 
-int main(int argC, char * argV[]){
+//Is a little error-ous
+bool texture_within_16_colours(uint32_t * texture, uint16_t height, uint16_t ** palette_processed){
+	uint32_t palette[16];
+	uint8_t palette_index = 0;
+	for(int i = 0; i < 32 * height; i++){
+		bool found = false;
+		for(int j = 0; j < palette_index; j++){
+			if(texture[i] == palette[j]){
+				found = true;
+				break;
+			}
+		}
+		if(!found){
+			if(palette_index >= 16){
+				return false;
+			}
+			palette[palette_index];
+			palette_index++;
+		}
+	}
+	printf("Total colours: %d\n", palette_index);
+	return true;
+}
+
+// uint8_t png_to_argb4444_4BPP(png_details_t * p_det, uint32_t * image_buffer, uint16_t * palette_buffer){
+// 	;
+// }
+
+int main(int argC, char ** argV){
 	bool flag_input_image = false;
 	bool flag_output_image = false;
 	bool flag_output_palette = false;
@@ -88,43 +141,35 @@ int main(int argC, char * argV[]){
 		invalid_input();
 	}
 
-	uint8_t num_frames = input_image_index_end - input_image_index_start + 1;
+	// uint8_t num_frames = input_image_index_end - input_image_index_start + 1;
 
-	uint32_t * output_image;
-	uint16_t * output_palette = malloc(sizeof(uint16_t) * 16);
-	if(!output_palette){printf("Ran out of memory. Terminating now\n"); return 1;}
-	png_details_t p_det;
+	uint32_t * input_image = NULL;
+	uint16_t height = 0;
+	uint8_t * output_image = NULL;	//4BPP, Each element contains two texels
+	uint16_t * output_palette = NULL;
+	// uint16_t * output_palette = malloc(sizeof(uint16_t) * 16);
+	// if(!output_palette){printf("Ran out of memory. Terminating now\n"); return 1;}
 
-	//malloc enough space for "num_frames" amount of uint32_t pointers. Have a single png_details struct at a time
-	if(num_frames == 1){
-		if(read_png_file(argV[input_image_index_start], &p_det)){printf("File %s couldn't be read. Terminating now\n", argV[input_image_index_start]); return 2;}
-		if(p_det.width != 32 || p_det.height % 32 != 0){
-			printf("%s has incorrect height/width\nWidth should be 32 and height a multiple of 32\nThis image's width is %d and height is %d\n",
-				argV[input_image_index_start], p_det.width, p_det.height);
-			return 3;
-		}
-		else{
-			printf("Correct dimentions. Width %d Height %d\n", p_det.width, p_det.height);
-		}
+	uint8_t error = 0;
+	if(error = pngs_to_one_binary(input_image_index_start, input_image_index_end, output_image_index, output_palette_index, &input_image, &height, argV) != 0){
+		printf("Error occurred\n");
+		free(input_image);
+		return error;
+	}
 
-		output_image = malloc(sizeof(uint32_t) * num_frames * p_det.height);	//The uint32_t size acts as the width
-		if(!output_image){printf("Ran out of memory. Terminating now\n"); return 4;}
-
-		free_png_texture_buffer(&p_det);
+	bool is_4BPP = texture_within_16_colours(input_image, height, &output_palette);
+	if(is_4BPP){
+		printf("It is good\n");
 	}
 	else{
-		printf("Multiple sources isn't supported yet\n");
-		return 1;
+		printf("More than 16 colours\n");
 	}
 
+
+	free(input_image);
 	free(output_image);
 	free(output_palette);
 	return 0;
-
-
-
-
-
 
 
 	//malloc enough space for "num_frames" amount of uint32_t pointers. Have a single png_details struct at a time
