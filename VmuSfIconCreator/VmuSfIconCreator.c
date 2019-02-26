@@ -8,9 +8,13 @@
 
 void invalid_input(){
 	printf("\nWrong number of arguments provided. This is the format\n");
-	// printf("./DtexToRGBA8888 [dtex_filename] *[--binary] [rgba8888_binary_filename] *[--png] [png_filename]\n");
-	// printf("png and binary is an optional tag that toggle png and/or binary outputs\n");
-	// printf("However you must choose at least one\n");
+	printf("./VmuSfIconCreator --input-image [png_filename_1] [png_filename_2] (etc.) --output-image [filename] -- output-palette [filename]\n\n");
+	printf("Note you ned at least 1 png file\nSuccessing PNGs will be vertically appended in chronological order\n");
+	printf("All source PNGs must be 32 pixels wide and be \"A multiple of 32\" pixels height\n");
+
+	printf("\nNote: Right now the program only supports a total of 16 colours between all PNGs\n");
+	printf("Any more and the program throws an error\n");
+	printf("A future update will see this and find the best 16 colours to use\n");
 
 	exit(1);
 }
@@ -71,9 +75,10 @@ uint8_t pngs_to_one_binary(uint8_t in_img_index_start, uint8_t in_img_index_end,
 	return 0;
 }
 
-//Is a little error-ous
 bool texture_within_16_colours(uint32_t * texture, uint16_t height, uint16_t ** palette_processed){
 	uint32_t palette[16];
+	// *palette_processed = malloc(sizeof(uint16_t) * 16);
+	// if(!(*palette_processed)){printf("Ran out of memory. Terminating now\n"); return false;}
 	uint8_t palette_index = 0;
 	for(int i = 0; i < 32 * height; i++){
 		bool found = false;
@@ -84,10 +89,11 @@ bool texture_within_16_colours(uint32_t * texture, uint16_t height, uint16_t ** 
 			}
 		}
 		if(!found){
+			printf("%d, %d, %x\n", palette_index, i, texture[i]);
 			if(palette_index >= 16){
 				return false;
 			}
-			palette[palette_index];
+			palette[palette_index] = texture[i];
 			palette_index++;
 		}
 	}
@@ -159,7 +165,7 @@ int main(int argC, char ** argV){
 
 	bool is_4BPP = texture_within_16_colours(input_image, height, &output_palette);
 	if(is_4BPP){
-		printf("It is good\n");
+		printf("Less than 16 colours\n");
 	}
 	else{
 		printf("More than 16 colours\n");
