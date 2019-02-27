@@ -25,7 +25,10 @@ $(EXE): $(OBJS)
 clean:
 	rm -f *.o $(EXE)$(EXT)
 	rm -f *.bin
+	rm -f *.BIN
+	rm -f *.png
 
 run:
-	echo WIP
+	./VmuSfIconCreator --input-image textures/single_test.png textures/twelve_test.png --output-image IMAGE.BIN --output-palette PALLETTE.BIN
+
 

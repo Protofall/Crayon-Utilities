@@ -35,14 +35,13 @@ uint8_t pngs_to_one_binary(uint8_t in_img_index_start, uint8_t in_img_index_end,
 	uint8_t output_palette_index, uint32_t ** input_image, uint16_t * height, char ** argV){
 
 	*input_image = malloc(sizeof(uint32_t) * 32 * 32 * 256);
-	uint32_t * current_image = *input_image;
 	if(!(*input_image)){printf("Ran out of memory. Terminating now\n"); return 1;}
+	uint32_t * current_texel = *input_image;
 	png_details_t p_det;
 
-	uint8_t num_frames = in_img_index_end - in_img_index_start + 1;
-	// uint16_t height = 0;
+	uint8_t num_pngs = in_img_index_end - in_img_index_start + 1;
 
-	for(int i = 0; i < num_frames; i++){
+	for(int i = 0; i < num_pngs; i++){
 		printf("File is %s\n", argV[in_img_index_start + i]);
 		if(read_png_file(argV[in_img_index_start + i], &p_det)){printf("File %s couldn't be read. Terminating now\n", argV[in_img_index_start + i]); return 2;}
 		if(p_det.width != 32 || p_det.height % 32 != 0){
@@ -59,9 +58,9 @@ uint8_t pngs_to_one_binary(uint8_t in_img_index_start, uint8_t in_img_index_end,
 		for(int y = 0; y < p_det.height; y++){
 			for(int x = 0; x < p_det.width; x++){
 				png_bytep px = &(p_det.row_pointers[y][x * 4]);
-				current_image[0] = (px[0] << 24) + (px[1] << 16) + (px[2] << 8) + px[3];
-				// memcpy(&current_image[0], &p_det.row_pointers[y][x * 4], 4);	//Byte order is wrong when using this method
-				current_image++;
+				current_texel[0] = (px[0] << 24) + (px[1] << 16) + (px[2] << 8) + px[3];
+				// memcpy(&current_texel[0], &p_det.row_pointers[y][x * 4], 4);	//Byte order is wrong when using this method
+				current_texel++;
 			}
 		}
 
@@ -75,15 +74,28 @@ uint8_t pngs_to_one_binary(uint8_t in_img_index_start, uint8_t in_img_index_end,
 	return 0;
 }
 
-bool texture_within_16_colours(uint32_t * texture, uint16_t height, uint16_t ** palette_processed){
-	uint32_t palette[16];
-	// *palette_processed = malloc(sizeof(uint16_t) * 16);
-	// if(!(*palette_processed)){printf("Ran out of memory. Terminating now\n"); return false;}
+//This will also help reduce the colour count by removing similar colours
+void rgba8888_to_argb4444(uint32_t * input_image, uint16_t height){
+	uint8_t r, g, b, a;
+	for(int i = 0; i < 32 * height; i++){
+		r = bit_extracted(input_image[i], 8, 24) >> 4;
+		g = bit_extracted(input_image[i], 8, 16) >> 4;
+		b = bit_extracted(input_image[i], 8, 8) >> 4;
+		a = bit_extracted(input_image[i], 8, 0) >> 4;
+		input_image[i] = (a << 12) + (r << 8) + (g << 4) + b;
+	}
+	return;
+}
+
+//I think later this function will die off
+	//Note that its passed through a n rgba8888_to_argb4444 convertor
+bool texture_within_16_colours(uint32_t * texture, uint16_t height, uint16_t * output_palette){
+	// uint32_t palette[16];
 	uint8_t palette_index = 0;
 	for(int i = 0; i < 32 * height; i++){
 		bool found = false;
 		for(int j = 0; j < palette_index; j++){
-			if(texture[i] == palette[j]){
+			if(texture[i] == output_palette[j]){
 				found = true;
 				break;
 			}
@@ -93,17 +105,55 @@ bool texture_within_16_colours(uint32_t * texture, uint16_t height, uint16_t ** 
 			if(palette_index >= 16){
 				return false;
 			}
-			palette[palette_index] = texture[i];
+			output_palette[palette_index] = texture[i];
 			palette_index++;
 		}
 	}
 	printf("Total colours: %d\n", palette_index);
+
+	//Just to make sure there's no garbage info
+	for(int i = palette_index; i < 16; i++){
+		output_palette[i] = 0;
+		printf("%d, BLANK, %x\n", palette_index, output_palette[i]);
+	}
+
+	// uint8_t r, g, b, a;
+	// for(int i = 0; i < 16; i++){
+	// 	r = bit_extracted(palette[i], 8, 24) >> 4;
+	// 	g = bit_extracted(palette[i], 8, 16) >> 4;
+	// 	b = bit_extracted(palette[i], 8, 8) >> 4;
+	// 	a = bit_extracted(palette[i], 8, 0) >> 4;
+	// 	output_palette[i] = (a << 12) + (r << 8) + (g << 4) + b;
+	// 	printf("%d, %x\n", i, output_palette[i]);
+	// }
+
 	return true;
 }
 
-// uint8_t png_to_argb4444_4BPP(png_details_t * p_det, uint32_t * image_buffer, uint16_t * palette_buffer){
-// 	;
-// }
+uint8_t create_binaries(uint32_t * input_image, uint8_t ** output_image, uint16_t * output_palette, uint16_t height){
+	*output_image = malloc(sizeof(uint8_t) * 32 * height / 2);	//4BPP
+	if(!(*output_image)){printf("Ran out of memory. Terminating now\n"); return 1;}
+
+	int output_index = 0;
+	for(int i = 0; i < 32 * height; i++){
+		for(int j = 0; j < 16; j++){
+			if(input_image[i] == output_palette[j]){
+				if(i % 2 == 0){
+					(*output_image)[output_index] = j << 4;
+				}
+				else{
+					(*output_image)[output_index] += j;
+				}
+			}
+		}
+		if(i % 2 != 0){
+			output_index++;
+		}
+	}
+
+	return 0;
+}
+
 
 int main(int argC, char ** argV){
 	bool flag_input_image = false;
@@ -147,34 +197,64 @@ int main(int argC, char ** argV){
 		invalid_input();
 	}
 
-	// uint8_t num_frames = input_image_index_end - input_image_index_start + 1;
-
 	uint32_t * input_image = NULL;
 	uint16_t height = 0;
 	uint8_t * output_image = NULL;	//4BPP, Each element contains two texels
-	uint16_t * output_palette = NULL;
-	// uint16_t * output_palette = malloc(sizeof(uint16_t) * 16);
-	// if(!output_palette){printf("Ran out of memory. Terminating now\n"); return 1;}
+	uint16_t output_palette[16];
 
-	uint8_t error = 0;
-	if(error = pngs_to_one_binary(input_image_index_start, input_image_index_end, output_image_index, output_palette_index, &input_image, &height, argV) != 0){
+	uint8_t error = pngs_to_one_binary(input_image_index_start, input_image_index_end, output_image_index,
+		output_palette_index, &input_image, &height, argV);
+	if(error){
 		printf("Error occurred\n");
 		free(input_image);
 		return error;
 	}
 
-	bool is_4BPP = texture_within_16_colours(input_image, height, &output_palette);
-	if(is_4BPP){
-		printf("Less than 16 colours\n");
-	}
-	else{
-		printf("More than 16 colours\n");
+	rgba8888_to_argb4444(input_image, height);
+	bool is_4BPP = texture_within_16_colours(input_image, height, output_palette);
+	if(!is_4BPP){
+		printf("More than 16 colours isn't supported yet\n");
+		free(input_image);
+		return 1;
 	}
 
+	error = create_binaries(input_image, &output_image, output_palette, height);
+	if(error){
+		printf("Error occurred\n");
+		free(input_image);
+		free(output_image);
+		return error;
+	}
+	free(input_image);	//This buffer is no longer needed
 
-	free(input_image);
+	FILE * f_binary = fopen(argV[output_image_index], "wb");
+	if(!f_binary){
+		printf("Error opening file!\n");
+		free(output_image);
+		return 1;
+	}
+	// fwrite(output_image, sizeof(uint8_t), 32 * height / 2, f_binary);	//Note this is stored in little endian
+	if(fwrite(output_image, sizeof(uint8_t), 32 * height / 2, f_binary) != 32 * height / 2){	//Note this is stored in little endian. Also crashes when I try to print 16 entries...
+		printf("Error occurred when writing to file\n");
+		free(output_image);
+		return 1;
+	}
+	fclose(f_binary);
+
+	f_binary = fopen(argV[output_palette_index], "wb");
+	if(!f_binary){
+		printf("Error opening file!\n");
+		free(output_image);
+		return 1;
+	}
+	if(fwrite(output_palette, sizeof(uint16_t), 16, f_binary) != 16){	//Note this is stored in little endian. Also crashes when I try to print 16 entries...
+		printf("Error occurred when writing to file\n");
+		free(output_image);
+		return 1;
+	}
+	fclose(f_binary);
+
 	free(output_image);
-	free(output_palette);
 	return 0;
 
 
