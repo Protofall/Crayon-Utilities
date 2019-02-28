@@ -149,8 +149,17 @@ uint8_t rgba8888_to_png_details(uint32_t * pixel_data, int height, int width, pn
 
 	//Allocate space
 	p_det->row_pointers = (png_bytep*)malloc(sizeof(png_bytep) * p_det->height);
+	if(!p_det->row_pointers){printf("Ran out of memory. Terminating now\n"); return 1;}
 	for(int y = 0; y < p_det->height; y++){
 		p_det->row_pointers[y] = (png_byte*)malloc(sizeof(png_byte) * p_det->width * 4);
+		if(!p_det->row_pointers[y]){
+			for(int i = 0; i < y; i++){	//Free the rest of the array
+				free(p_det->row_pointers[i]);
+			}
+			free(p_det->row_pointers);
+			printf("Ran out of memory. Terminating now\n");
+			return 1;
+		}
 	}
 
 	for(int y = 0; y < p_det->height; y++){

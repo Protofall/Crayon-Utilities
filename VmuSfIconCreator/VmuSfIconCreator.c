@@ -42,7 +42,6 @@ uint8_t pngs_to_one_binary(uint8_t in_img_index_start, uint8_t in_img_index_end,
 	uint8_t num_pngs = in_img_index_end - in_img_index_start + 1;
 
 	for(int i = 0; i < num_pngs; i++){
-		printf("File is %s\n", argV[in_img_index_start + i]);
 		if(read_png_file(argV[in_img_index_start + i], &p_det)){printf("File %s couldn't be read. Terminating now\n", argV[in_img_index_start + i]); return 2;}
 		if(p_det.width != 32 || p_det.height % 32 != 0){
 			printf("%s has incorrect height/width\nWidth should be 32 and height a multiple of 32\nThis image's width is %d and height is %d\n",
@@ -66,10 +65,6 @@ uint8_t pngs_to_one_binary(uint8_t in_img_index_start, uint8_t in_img_index_end,
 
 		free_png_texture_buffer(&p_det);
 	}
-
-	//This was used for debugging
-	if(rgba8888_to_png_details(*input_image, *height, 32, &p_det)){return 190;}
-	write_png_file("test.png", &p_det);	//Image looks all messed up for some reason
 
 	return 0;
 }
@@ -101,7 +96,7 @@ bool texture_within_16_colours(uint32_t * texture, uint16_t height, uint16_t * o
 			}
 		}
 		if(!found){
-			printf("%d, %d, %x\n", palette_index, i, texture[i]);
+			// printf("%d, %d, %x\n", palette_index, i, texture[i]);
 			if(palette_index >= 16){
 				return false;
 			}
@@ -109,25 +104,52 @@ bool texture_within_16_colours(uint32_t * texture, uint16_t height, uint16_t * o
 			palette_index++;
 		}
 	}
-	printf("Total colours: %d\n", palette_index);
+	// printf("Total colours: %d\n", palette_index);
 
 	//Just to make sure there's no garbage info
 	for(int i = palette_index; i < 16; i++){
 		output_palette[i] = 0;
-		printf("%d, BLANK, %x\n", palette_index, output_palette[i]);
+		// printf("%d, BLANK, %x\n", palette_index, output_palette[i]);
 	}
 
-	// uint8_t r, g, b, a;
-	// for(int i = 0; i < 16; i++){
-	// 	r = bit_extracted(palette[i], 8, 24) >> 4;
-	// 	g = bit_extracted(palette[i], 8, 16) >> 4;
-	// 	b = bit_extracted(palette[i], 8, 8) >> 4;
-	// 	a = bit_extracted(palette[i], 8, 0) >> 4;
-	// 	output_palette[i] = (a << 12) + (r << 8) + (g << 4) + b;
-	// 	printf("%d, %x\n", i, output_palette[i]);
-	// }
-
 	return true;
+}
+
+//Used for the preview function
+uint8_t argb4444_to_png_details(uint32_t * pixel_data, int height, int width, png_details_t * p_det){
+	p_det->height = height;
+	p_det->width = width;
+
+	p_det->color_type = PNG_COLOR_MASK_COLOR + PNG_COLOR_MASK_ALPHA;	//= 2 + 4 = 6. They describe the color_type field in png_info
+	p_det->bit_depth = 8;	//rgba8888, can be 1, 2, 4, 8, or 16 bits/channel (from IHDR)
+
+	//Allocate space
+	p_det->row_pointers = (png_bytep*)malloc(sizeof(png_bytep) * p_det->height);
+	if(!p_det->row_pointers){printf("Ran out of memory. Terminating now\n"); return 1;}
+	for(int y = 0; y < p_det->height; y++){
+		p_det->row_pointers[y] = (png_byte*)malloc(sizeof(png_byte) * p_det->width * 4);
+		if(!p_det->row_pointers[y]){
+			for(int i = 0; i < y; i++){	//Free the rest of the array
+				free(p_det->row_pointers[i]);
+			}
+			free(p_det->row_pointers);
+			printf("Ran out of memory. Terminating now\n");
+			return 1;
+		}
+	}
+
+	for(int y = 0; y < p_det->height; y++){
+		for(int x = 0; x < p_det->width; x++){
+			png_bytep px = &(p_det->row_pointers[y][x * 4]);
+
+			//(2^8 - 1) / (2^4 - 1) = 17
+			px[0] = bit_extracted(pixel_data[(y * width) + x], 4, 8) * 17;
+			px[1] = bit_extracted(pixel_data[(y * width) + x], 4, 4) * 17;
+			px[2] = bit_extracted(pixel_data[(y * width) + x], 4, 0) * 17;
+			px[3] = bit_extracted(pixel_data[(y * width) + x], 4, 12) * 17;
+		}
+	}
+	return 0;
 }
 
 uint8_t create_binaries(uint32_t * input_image, uint8_t ** output_image, uint16_t * output_palette, uint16_t height){
@@ -154,15 +176,30 @@ uint8_t create_binaries(uint32_t * input_image, uint8_t ** output_image, uint16_
 	return 0;
 }
 
+uint8_t write_to_file(char * path, size_t size, uint32_t num_elements, void * buffer){
+	FILE * f_binary = fopen(path, "wb");
+	if(!f_binary){
+		printf("Error opening file!\n");
+		return 1;
+	}
+	if(fwrite(buffer, size, num_elements, f_binary) != num_elements){	//Note this is stored in little endian. Also crashes when I try to print 16 entries...
+		printf("Error occurred when writing to file\n");
+		return 2;
+	}
+	fclose(f_binary);
+	return 0;
+}
 
 int main(int argC, char ** argV){
 	bool flag_input_image = false;
 	bool flag_output_image = false;
 	bool flag_output_palette = false;
+	bool flag_preview = false;
 	uint8_t input_image_index_start = 0;
 	uint8_t input_image_index_end = 0;
 	uint8_t output_image_index = 0;
 	uint8_t output_palette_index = 0;
+	uint8_t preview_index = 0;
 	for(int i = 1; i < argC; i++){
 		if(string_equals(argV[i], "--input-image")){
 			if(++i >= argC){
@@ -190,6 +227,13 @@ int main(int argC, char ** argV){
 			flag_output_palette = true;
 			output_palette_index = i;
 		}
+		else if(string_equals(argV[i], "--preview")){
+			if(++i >= argC){
+				invalid_input();
+			}
+			flag_preview = true;
+			preview_index = i;
+		}
 	}
 
 	//A file path is not set, can't continue
@@ -209,6 +253,10 @@ int main(int argC, char ** argV){
 		free(input_image);
 		return error;
 	}
+	if(height > 96){
+		printf("WARNING: The Dreamcast BIOS can only handle 3 frames of animation\n");
+		printf("%d frames will not render correctly\n", height / 32);
+	}
 
 	rgba8888_to_argb4444(input_image, height);
 	bool is_4BPP = texture_within_16_colours(input_image, height, output_palette);
@@ -216,6 +264,12 @@ int main(int argC, char ** argV){
 		printf("More than 16 colours isn't supported yet\n");
 		free(input_image);
 		return 1;
+	}
+
+	if(flag_preview){
+		png_details_t p_det;
+		if(argb4444_to_png_details(input_image, height, 32, &p_det)){return 190;}
+		write_png_file(argV[preview_index], &p_det);
 	}
 
 	error = create_binaries(input_image, &output_image, output_palette, height);
@@ -227,50 +281,18 @@ int main(int argC, char ** argV){
 	}
 	free(input_image);	//This buffer is no longer needed
 
-	FILE * f_binary = fopen(argV[output_image_index], "wb");
-	if(!f_binary){
-		printf("Error opening file!\n");
+	error = write_to_file(argV[output_image_index], sizeof(uint8_t), 32 * height / 2, output_image);
+	if(error){
 		free(output_image);
-		return 1;
+		return error;
 	}
-	// fwrite(output_image, sizeof(uint8_t), 32 * height / 2, f_binary);	//Note this is stored in little endian
-	if(fwrite(output_image, sizeof(uint8_t), 32 * height / 2, f_binary) != 32 * height / 2){	//Note this is stored in little endian. Also crashes when I try to print 16 entries...
-		printf("Error occurred when writing to file\n");
-		free(output_image);
-		return 1;
-	}
-	fclose(f_binary);
 
-	f_binary = fopen(argV[output_palette_index], "wb");
-	if(!f_binary){
-		printf("Error opening file!\n");
+	error = write_to_file(argV[output_palette_index], sizeof(uint16_t), 16, output_palette);
+	if(error){
 		free(output_image);
-		return 1;
+		return error;
 	}
-	if(fwrite(output_palette, sizeof(uint16_t), 16, f_binary) != 16){	//Note this is stored in little endian. Also crashes when I try to print 16 entries...
-		printf("Error occurred when writing to file\n");
-		free(output_image);
-		return 1;
-	}
-	fclose(f_binary);
 
 	free(output_image);
-	return 0;
-
-
-	//malloc enough space for "num_frames" amount of uint32_t pointers. Have a single png_details struct at a time
-	// if(num_frames != 1){
-		//If the dimension of any of the pngs isn't 32-by-32, then call invalid_input();
-	// }
-
-	// printf("%d, %d, %d, %d, %d, %d, %d\n", flag_input_image, flag_output_image, flag_output_palette,
-	// 	input_image_index_start, input_image_index_end, output_image_index, output_palette_index);
-
-	// ./VmuSavefileIconCreator --output-palette pal.bin --input-image a.png b.png c.png d.png --output-image image.bin
-	// 1, 1, 1, 4, 7, 9, 2
-
-	// ./VmuSavefileIconCreator --output-palette pal.bin --input-image a.png b.png c.png d.png
-	// 1, 0, 1, 4, 7, 0, 2
-
 	return 0;
 }
