@@ -85,35 +85,108 @@ void rgba8888_to_argb4444(uint32_t * input_image, uint16_t height){
 
 //I think later this function will die off
 	//Note that its passed through a n rgba8888_to_argb4444 convertor
-bool texture_within_16_colours(uint32_t * texture, uint16_t height, uint16_t * output_palette){
-	// uint32_t palette[16];
-	uint8_t palette_index = 0;
-	for(int i = 0; i < 32 * height; i++){
-		bool found = false;
-		for(int j = 0; j < palette_index; j++){
-			if(texture[i] == output_palette[j]){
-				found = true;
+// bool texture_within_16_colours(uint32_t * texture, uint16_t height, uint16_t * output_palette){
+// 	// uint32_t palette[16];
+// 	uint8_t palette_index = 0;
+// 	for(int i = 0; i < 32 * height; i++){
+// 		bool found = false;
+// 		for(int j = 0; j < palette_index; j++){
+// 			if(texture[i] == output_palette[j]){
+// 				found = true;
+// 				break;
+// 			}
+// 		}
+// 		if(!found){
+// 			// printf("%d, %d, %x\n", palette_index, i, texture[i]);
+// 			if(palette_index >= 16){
+// 				return false;
+// 			}
+// 			output_palette[palette_index] = texture[i];
+// 			palette_index++;
+// 		}
+// 	}
+// 	// printf("Total colours: %d\n", palette_index);
+
+// 	//Just to make sure there's no garbage info
+// 	for(int i = palette_index; i < 16; i++){
+// 		output_palette[i] = 0;
+// 		// printf("%d, BLANK, %x\n", palette_index, output_palette[i]);
+// 	}
+
+// 	return true;
+// }
+
+typedef struct colour_entry{
+	uint32_t colour;
+	struct colour_entry * next;
+} colour_entry_t;
+
+int8_t reduce_colours(uint32_t * texture, uint16_t height, uint16_t * output_palette,
+	uint16_t colour_limit){
+	//Get a linked list of all colours present
+	colour_entry_t * head = NULL;
+	colour_entry_t * tail = NULL;
+	uint32_t colour_count = 0;
+	int8_t return_value = 0;
+	for(uint32_t i = 0; i < 32 * height; i++){
+		bool colour_found = false;
+		colour_entry_t * current = head;
+		while(current != NULL){
+			if(current->colour == texture[i]){
+				colour_found = true;
 				break;
 			}
+			current = current->next;
 		}
-		if(!found){
-			// printf("%d, %d, %x\n", palette_index, i, texture[i]);
-			if(palette_index >= 16){
-				return false;
+		if(!colour_found){
+			colour_entry_t * new_colour = malloc(sizeof(colour_entry_t));
+			if(!new_colour){
+				return_value = 1;
+				goto cleanup;
 			}
-			output_palette[palette_index] = texture[i];
-			palette_index++;
+			if(head == NULL){
+				head = new_colour;
+			}
+			if(tail != NULL){
+				tail->next = new_colour;
+			}
+			tail = new_colour;
+			new_colour->colour = texture[i];
+			new_colour->next = NULL;
+
+			colour_count++;
 		}
 	}
-	// printf("Total colours: %d\n", palette_index);
 
-	//Just to make sure there's no garbage info
-	for(int i = palette_index; i < 16; i++){
-		output_palette[i] = 0;
-		// printf("%d, BLANK, %x\n", palette_index, output_palette[i]);
+	//If we are already under or equal to the colour limit, then there's no reason to
+		//Perform K-means. So we create the paletted texture here and return with code -1
+	if(colour_count <= colour_limit){
+		return_value = -1;
+		colour_entry_t * traverse = head;
+		uint8_t i = 0;
+		while(traverse != NULL){
+			output_palette[i] = traverse->colour;
+			i++;
+			traverse = traverse->next;
+		}
+		goto cleanup;
 	}
 
-	return true;
+	printf("%d unique colours were detected\n", colour_count);
+
+	//Perform K-means with "colour_limit" centroids
+	//TODO
+
+	cleanup:
+
+	//Destory the old linked list
+	while(head != NULL){
+		colour_entry_t * old = head;
+		head = head->next;
+		free(old);
+	}
+
+	return return_value;
 }
 
 //Used for the preview function
@@ -260,11 +333,20 @@ int main(int argC, char ** argV){
 	}
 
 	rgba8888_to_argb4444(input_image, height);
-	bool is_4BPP = texture_within_16_colours(input_image, height, output_palette);
-	if(!is_4BPP){
+	int8_t reduce_val = reduce_colours(input_image, height, output_palette, 16);	//Move this later
+	// printf("err %d\n", reduce_val);
+	if(reduce_val == 0){	//Colours were reduces
 		printf("More than 16 colours isn't supported yet\n");
 		free(input_image);
 		return 1;
+	}
+	if(reduce_val > 0){
+		printf("Ran out of memory. Terminating now\n");
+		free(input_image);
+		return 1;
+	}
+	if(reduce_val == -1){
+		printf("Colours didn't need to be reduced\n");
 	}
 
 	if(flag_preview){
