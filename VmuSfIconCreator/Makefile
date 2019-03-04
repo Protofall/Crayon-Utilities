@@ -1,8 +1,8 @@
 
 EXE = VmuSfIconCreator
 EXT =
-CPPFLAGS = -std=gnu++11 -lpng
-CFLAGS = -lpng
+CPPFLAGS = -std=gnu++11 -lpng -lm
+CFLAGS = -lpng -lm
 
 CPPFILES = $(wildcard *.cpp)
 CFILES = $(wildcard *.c)
@@ -13,13 +13,12 @@ OBJS = $(CPPFILES:%.cpp=%.o) $(CFILES:%.c=%.o)
 all: clean $(EXE)
 
 $(EXE): $(OBJS)
-	gcc -o $(EXE) $(OBJS) -lpng
+	gcc -o $(EXE) $(OBJS) $(CFLAGS)
 
 %.o: %.cpp
 	g++ $(CPPFLAGS) -c $<
 
 %.o: %.c
-	echo $(OBJS)
 	gcc $(CFLAGS) -c $<
 
 clean:
