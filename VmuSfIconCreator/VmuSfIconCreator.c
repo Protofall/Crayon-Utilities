@@ -174,43 +174,45 @@ uint8_t k_means(uint16_t * output_palette, uint16_t k, colour_entry_t * full_pal
 
 	//Due to overflow I'm splitting each channel into its own thing :/
 		//A 16-bit var should be enough space to avoid overflow
-	sum_nearest_A = malloc(sizeof(uint16_t) * colour_count);
+	sum_nearest_A = malloc(sizeof(uint16_t) * k);
 	if(!sum_nearest_A){
 		printf("Ran out of memory. Terminating now\n");
 		error_code = 3; goto cleanup_k_means;
 	}
-	sum_nearest_R = malloc(sizeof(uint16_t) * colour_count);
+	sum_nearest_R = malloc(sizeof(uint16_t) * k);
 	if(!sum_nearest_R){
 		printf("Ran out of memory. Terminating now\n");
 		error_code = 4; goto cleanup_k_means;
 	}
-	sum_nearest_G = malloc(sizeof(uint16_t) * colour_count);
+	sum_nearest_G = malloc(sizeof(uint16_t) * k);
 	if(!sum_nearest_G){
 		printf("Ran out of memory. Terminating now\n");
 		error_code = 5; goto cleanup_k_means;
 	}
-	sum_nearest_B = malloc(sizeof(uint16_t) * colour_count);
+	sum_nearest_B = malloc(sizeof(uint16_t) * k);
 	if(!sum_nearest_B){
 		printf("Ran out of memory. Terminating now\n");
 		error_code = 6; goto cleanup_k_means;
 	}
-	new_centroids = malloc(sizeof(uint16_t) * colour_count);
+	new_centroids = malloc(sizeof(uint16_t) * k);
 	if(!new_centroids){
 		printf("Ran out of memory. Terminating now\n");
 		error_code = 7; goto cleanup_k_means;
 	}
 
+	//Somewhere below here there must be a memory leak...how???
 	double px[4];
 	int nearest;	//Default zero
 	int same;		//Used to check if the centroids have changed once updated
 	while(1){
 		//Reset the new_centroids array
-		for(int i = 0; i < colour_count; i++){
+		for(int i = 0; i < k; i++){
 			sum_nearest_A[i] = 0;
 			sum_nearest_R[i] = 0;
 			sum_nearest_G[i] = 0;
 			sum_nearest_B[i] = 0;
 			new_centroids[i] = 0;
+			owned_node_count[i] = 0;
 		}
 
 		//Calculates the distance between points and centroids
@@ -237,7 +239,11 @@ uint8_t k_means(uint16_t * output_palette, uint16_t k, colour_entry_t * full_pal
 		}
 
 		//Calculate the final value for the new centroids
-		for(int i = 0; i < colour_count; i++){
+		for(int i = 0; i < k; i++){
+			uint32_t local_owned_count = owned_node_count[i];
+			if(local_owned_count == 0){	//Avoid divide by zero errors
+				continue;
+			}
 			new_centroids[i] = (sum_nearest_A[i] / owned_node_count[i]) << 12;
 			new_centroids[i] += (sum_nearest_R[i] / owned_node_count[i]) << 8;
 			new_centroids[i] += (sum_nearest_G[i] / owned_node_count[i]) << 4;
@@ -255,6 +261,7 @@ uint8_t k_means(uint16_t * output_palette, uint16_t k, colour_entry_t * full_pal
 		if(k <= same){	//If none of the centroids changed, break from the while loop
 			break;
 		}
+		break;
 	}
 
 	cleanup_k_means:
@@ -351,6 +358,10 @@ int8_t reduce_colours(uint32_t * texture, uint16_t height, uint16_t * output_pal
 
 	//Will reduce the colours
 	uint8_t k_res = k_means(palette_comparison, colour_limit, head);
+	if(k_res){
+		return_value = 2 + k_res;
+		goto cleanup;
+	}
 	// uint8_t k_res = k_means(output_palette, colour_limit, head);
 
 	double px[4];
