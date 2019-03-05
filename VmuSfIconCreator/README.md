@@ -5,8 +5,9 @@ This program will take a set of PNGs that are all 32 pixels wide and a multiple 
 Dependencies:
 
 + libpng
++ math
 
-Run `make` to compile a bunch of dtex files and the program itself.
+Run `make` to compile the program.
 Run `./VmuSfIconCreator --input-image [png_filename_1] [png_filename_2] (etc.) --output-image [filename] -- output-palette [filename] --preview [filename]` to create the image and palette binaries. You must provide input and output-binary paths
 
 ### Credits

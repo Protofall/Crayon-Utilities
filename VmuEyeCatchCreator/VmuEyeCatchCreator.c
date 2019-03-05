@@ -10,9 +10,12 @@
 
 void invalid_input(){
 	printf("\nWrong number of arguments provided. This is the format\n");
-	printf("./VmuSfIconCreator --input-image [png_filename_1] [png_filename_2] (etc.) --output-image [filename] -- output-palette [filename] --preview [filename]\n\n");
-	printf("Note you need at least 1 png file\nSuccessing PNGs will be vertically appended in chronological order\n");
-	printf("All source PNGs must be 32 pixels wide and be \"A multiple of 32\" pixels height\n");
+	printf("./VmuSfIconCreator --input-image [png_filename] --output-binary [filename] --mode [1 - 3] --preview [filename]\n\n");
+	printf("Note you can only have 1 png file\nThe PNG must be 72 pixels wide and 56 pixels high\n");
+	printf("Mode must be there with a value of 1, 2 or 3.\n");
+	printf("\t1 is a raw argb4444 binary (15.75 Blocks)\n");
+	printf("\t2 is a PAL8BPP argb4444 binary allowing 256 colours (8.875 Blocks)\n");
+	printf("\t3 is a PAL4BPP argb4444 binary allowing 16 colours (4 Blocks)\n");
 	printf("Preview is optional and just gives you a preview of the binary\n");
 
 	exit(1);
@@ -30,48 +33,48 @@ bool string_equals(char * a, char * b){
 	//and also due to how I take input, the input_image start/end difference can only go
 	//up to 253 frames. I don't see this is a problem because why would you want this many frames
 	//and a 1MB buffer is nothing to modern PC running this program so its fine to over allocate.
-uint8_t pngs_to_one_binary(uint8_t in_img_index_start, uint8_t in_img_index_end, uint8_t output_image_index,
-	uint8_t output_palette_index, uint32_t ** input_image, uint16_t * height, char ** argV){
+uint8_t pngs_to_one_binary(uint8_t in_img_index, uint32_t ** input_image, uint16_t * width,
+	uint16_t * height, char ** argV){
 
-	*input_image = malloc(sizeof(uint32_t) * 32 * 32 * 256);
+	uint16_t buff_width = 72;
+	uint16_t buff_height = 56;
+	*input_image = malloc(sizeof(uint32_t) * buff_width * buff_height);
 	if(!(*input_image)){printf("Ran out of memory. Terminating now\n"); return 1;}
 	uint32_t * current_texel = *input_image;
 	png_details_t p_det;
 
-	uint8_t num_pngs = in_img_index_end - in_img_index_start + 1;
-
-	for(int i = 0; i < num_pngs; i++){
-		if(read_png_file(argV[in_img_index_start + i], &p_det)){printf("File %s couldn't be read. Terminating now\n", argV[in_img_index_start + i]); return 2;}
-		if(p_det.width != 32 || p_det.height % 32 != 0){
-			printf("%s has incorrect height/width\nWidth should be 32 and height a multiple of 32\nThis image's width is %d and height is %d\n",
-				argV[in_img_index_start], p_det.width, p_det.height);
-			return 3;
-		}
-		*height += p_det.height;
-		if(*height > 256 * 32){
-			printf("Combined PNG height too long for buffer. Terminating program\n");
-			return 3;
-		}
-
-		for(int y = 0; y < p_det.height; y++){
-			for(int x = 0; x < p_det.width; x++){
-				png_bytep px = &(p_det.row_pointers[y][x * 4]);
-				current_texel[0] = (px[0] << 24) + (px[1] << 16) + (px[2] << 8) + px[3];
-				// memcpy(&current_texel[0], &p_det.row_pointers[y][x * 4], 4);	//Byte order is wrong when using this method
-				current_texel++;
-			}
-		}
-
-		free_png_texture_buffer(&p_det);
+	if(read_png_file(argV[in_img_index], &p_det)){printf("File %s couldn't be read. Terminating now\n", argV[in_img_index]); return 2;}
+	if(p_det.width != 72){
+		printf("%s has incorrect width\nWidth should be 72\nThis image's width is %d\n",
+			argV[in_img_index], p_det.width);
+		return 3;
 	}
+	if(p_det.height != 56){
+		printf("%s has incorrect height\nHeight should be 72\nThis image's height is %d\n",
+			argV[in_img_index], p_det.height);
+		return 3;
+	}
+	*height = p_det.height;
+	*width = p_det.width;
+
+	for(int y = 0; y < p_det.height; y++){
+		for(int x = 0; x < p_det.width; x++){
+			png_bytep px = &(p_det.row_pointers[y][x * 4]);
+			current_texel[0] = (px[0] << 24) + (px[1] << 16) + (px[2] << 8) + px[3];
+			// memcpy(&current_texel[0], &p_det.row_pointers[y][x * 4], 4);	//Byte order is wrong when using this method
+			current_texel++;
+		}
+	}
+
+	free_png_texture_buffer(&p_det);
 
 	return 0;
 }
 
 //This will also help reduce the colour count by removing similar colours
-void rgba8888_to_argb4444(uint32_t * input_image, uint16_t height){
+void rgba8888_to_argb4444(uint32_t * input_image, uint16_t width, uint16_t height){
 	uint8_t r, g, b, a;
-	for(int i = 0; i < 32 * height; i++){
+	for(int i = 0; i < width * height; i++){
 		r = bit_extracted(input_image[i], 8, 24) >> 4;
 		g = bit_extracted(input_image[i], 8, 16) >> 4;
 		b = bit_extracted(input_image[i], 8, 8) >> 4;
@@ -235,7 +238,7 @@ uint8_t k_means(uint16_t * output_palette, uint16_t k, colour_entry_t * full_pal
 }
 
 //This almost never gets near 16 colours. Best I've seen is 10...
-int8_t reduce_colours(uint32_t * texture, uint16_t height, uint16_t * output_palette,
+int8_t reduce_colours(uint32_t * texture, uint16_t width, uint16_t height, uint16_t * output_palette,
 	uint16_t colour_limit){
 	//Get a linked list of all colours present
 	colour_entry_t * head = NULL;
@@ -244,7 +247,7 @@ int8_t reduce_colours(uint32_t * texture, uint16_t height, uint16_t * output_pal
 	uint16_t * palette_comparison = NULL;
 	uint32_t colour_count = 0;
 	int8_t return_value = 0;
-	for(uint32_t i = 0; i < 32 * height; i++){
+	for(uint32_t i = 0; i < width * height; i++){
 		bool colour_found = false;
 		current = head;
 		while(current != NULL){
@@ -341,7 +344,7 @@ int8_t reduce_colours(uint32_t * texture, uint16_t height, uint16_t * output_pal
 	}
 
 	//Modify the colours in the texture itself
-	for(int i = 0; i < 32 * height; i++){
+	for(int i = 0; i < width * height; i++){
 		current = head;
 		uint32_t thing = 0;
 		int j = 0;
@@ -372,7 +375,7 @@ int8_t reduce_colours(uint32_t * texture, uint16_t height, uint16_t * output_pal
 }
 
 //Used for the preview function
-uint8_t argb4444_to_png_details(uint32_t * pixel_data, int height, int width, png_details_t * p_det){
+uint8_t argb4444_to_png_details(uint32_t * pixel_data, uint16_t width, int height, png_details_t * p_det){
 	p_det->height = height;
 	p_det->width = width;
 
@@ -408,12 +411,13 @@ uint8_t argb4444_to_png_details(uint32_t * pixel_data, int height, int width, pn
 	return 0;
 }
 
-uint8_t create_binaries(uint32_t * input_image, uint8_t ** output_image, uint16_t * output_palette, uint16_t height){
-	*output_image = malloc(sizeof(uint8_t) * 32 * height / 2);	//4BPP
+uint8_t create_binaries(uint32_t * input_image, uint8_t ** output_image, uint16_t * output_palette, uint16_t width,
+	uint16_t height){
+	*output_image = malloc(sizeof(uint8_t) * width * height / 2);	//4BPP
 	if(!(*output_image)){printf("Ran out of memory. Terminating now\n"); return 1;}
 
 	int output_index = 0;
-	for(int i = 0; i < 32 * height; i++){
+	for(int i = 0; i < width * height; i++){
 		for(int j = 0; j < 16; j++){
 			if(input_image[i] == output_palette[j]){
 				if(i % 2 == 0){
@@ -449,12 +453,11 @@ uint8_t write_to_file(char * path, size_t size, uint32_t num_elements, void * bu
 int main(int argC, char ** argV){
 	bool flag_input_image = false;
 	bool flag_output_image = false;
-	bool flag_output_palette = false;
+	bool flag_mode = false;
 	bool flag_preview = false;
-	uint8_t input_image_index_start = 0;
-	uint8_t input_image_index_end = 0;
+	uint8_t input_image_index = 0;
 	uint8_t output_image_index = 0;
-	uint8_t output_palette_index = 0;
+	uint8_t mode = 0;
 	uint8_t preview_index = 0;
 	for(int i = 1; i < argC; i++){
 		if(string_equals(argV[i], "--input-image")){
@@ -462,26 +465,21 @@ int main(int argC, char ** argV){
 				invalid_input();
 			}
 			flag_input_image = true;
-			input_image_index_start = i;
-			input_image_index_end = input_image_index_start;
-			while(i + 1 < argC && !string_equals(argV[i + 1], "--output-image") && !string_equals(argV[i + 1], "--output-palette")){
-				i++;
-				input_image_index_end = i;
-			}
+			input_image_index = i;
 		}
-		else if(string_equals(argV[i], "--output-image")){
+		else if(string_equals(argV[i], "--output-binary")){
 			if(++i >= argC){
 				invalid_input();
 			}
 			flag_output_image = true;
 			output_image_index = i;
 		}
-		else if(string_equals(argV[i], "--output-palette")){
+		else if(string_equals(argV[i], "--mode")){
 			if(++i >= argC){
 				invalid_input();
 			}
-			flag_output_palette = true;
-			output_palette_index = i;
+			flag_mode = true;
+			mode = atoi(argV[i]);
 		}
 		else if(string_equals(argV[i], "--preview")){
 			if(++i >= argC){
@@ -493,30 +491,34 @@ int main(int argC, char ** argV){
 	}
 
 	//A file path is not set, can't continue
-	if(!flag_input_image || !flag_output_image || !flag_output_palette){
+	if(!flag_input_image || !flag_output_image || !flag_mode){
 		invalid_input();
 	}
 
 	uint32_t * input_image = NULL;
 	uint16_t height = 0;
+	uint16_t width = 0;
 	uint8_t * output_image = NULL;	//4BPP, Each element contains two texels
 	uint16_t output_palette[16];
 
-	uint8_t error = pngs_to_one_binary(input_image_index_start, input_image_index_end, output_image_index,
-		output_palette_index, &input_image, &height, argV);
+	uint8_t error = pngs_to_one_binary(input_image_index, &input_image,
+		&width, &height, argV);
 	if(error){
 		printf("Error occurred\n");
 		free(input_image);
 		return error;
 	}
-	if(height > 96){
-		printf("WARNING: The Dreamcast BIOS can only handle 3 frames of animation\n");
-		printf("%d frames will not render correctly\n", height / 32);
-	}
 
-	rgba8888_to_argb4444(input_image, height);
+	rgba8888_to_argb4444(input_image, width, height);
 	srand(time(NULL));
-	int8_t reduce_val = reduce_colours(input_image, height, output_palette, 16);
+	uint16_t colour_count;
+	int8_t reduce_val = 0;
+	if(mode == 2){	//PAL8BPP
+		reduce_val = reduce_colours(input_image, width, height, output_palette, 256);
+	}
+	else if(mode == 3){	//PAL4BPP
+		reduce_val = reduce_colours(input_image, width, height, output_palette, 16);
+	}
 	if(reduce_val > 0){
 		printf("Ran out of memory. Terminating now\n");
 		free(input_image);
@@ -528,11 +530,11 @@ int main(int argC, char ** argV){
 
 	if(flag_preview){
 		png_details_t p_det;
-		if(argb4444_to_png_details(input_image, height, 32, &p_det)){return 190;}
+		if(argb4444_to_png_details(input_image, width, height, &p_det)){return 190;}
 		write_png_file(argV[preview_index], &p_det);
 	}
 
-	error = create_binaries(input_image, &output_image, output_palette, height);
+	error = create_binaries(input_image, &output_image, output_palette, width, height);
 	if(error){
 		printf("Error occurred\n");
 		free(input_image);
@@ -541,16 +543,13 @@ int main(int argC, char ** argV){
 	}
 	free(input_image);	//This buffer is no longer needed
 
-	error = write_to_file(argV[output_image_index], sizeof(uint8_t), 32 * height / 2, output_image);
-	if(error){
-		free(output_image);
-		return error;
-	}
-
-	error = write_to_file(argV[output_palette_index], sizeof(uint16_t), 16, output_palette);
-	if(error){
-		free(output_image);
-		return error;
+	printf("BINARY OUTPUT ISN'T FINISHED YET, %d\n\n", mode);
+	if(0){
+		error = write_to_file(argV[output_image_index], sizeof(uint8_t), width * height / 2, output_image);
+		if(error){
+			free(output_image);
+			return error;
+		}
 	}
 
 	free(output_image);
