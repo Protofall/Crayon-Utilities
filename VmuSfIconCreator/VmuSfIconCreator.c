@@ -2,6 +2,8 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <time.h>	//For rand
+#include <math.h>	//pow, sqrt
 
 #include "png_assist.h"
 
@@ -83,37 +85,294 @@ void rgba8888_to_argb4444(uint32_t * input_image, uint16_t height){
 	return;
 }
 
-//I think later this function will die off
-	//Note that its passed through a n rgba8888_to_argb4444 convertor
-bool texture_within_16_colours(uint32_t * texture, uint16_t height, uint16_t * output_palette){
-	// uint32_t palette[16];
-	uint8_t palette_index = 0;
-	for(int i = 0; i < 32 * height; i++){
-		bool found = false;
-		for(int j = 0; j < palette_index; j++){
-			if(texture[i] == output_palette[j]){
-				found = true;
+typedef struct colour_entry{
+	uint32_t colour;
+	struct colour_entry * next;
+} colour_entry_t;
+
+uint8_t k_means(uint16_t * output_palette, uint16_t k, colour_entry_t * full_palette_head){
+	//We re-calculate colour_count here instead of param incase a user provided a wrong size
+	colour_entry_t * current = full_palette_head;
+	uint32_t colour_count = 0;
+	while(current != NULL){
+		colour_count++;
+		current = current->next;
+	}
+	if(k >= colour_count){	//No need to reduce colours then
+		return 0;
+	}
+
+	//Generate k random colours and store in "output_palette"
+	for(int i = 0; i < k; i++){
+		output_palette[i] = (rand() % (1 << 16));	//1 << 16 = 65336 = 2 ^ 16
+		for(int j = 0; j < i; j++){
+			if(output_palette[j] == output_palette[i]){	//This exact colour already exists, choose a new colour
+				i--;
 				break;
 			}
 		}
-		if(!found){
-			// printf("%d, %d, %x\n", palette_index, i, texture[i]);
-			if(palette_index >= 16){
-				return false;
+	}
+	
+	uint8_t error_code = 0;
+	double * distance_array = NULL;
+	uint32_t * owned_node_count = NULL;
+	uint16_t * sum_nearest_A = NULL;
+	uint16_t * sum_nearest_R = NULL;
+	uint16_t * sum_nearest_G = NULL;
+	uint16_t * sum_nearest_B = NULL;
+	uint16_t * new_centroids = NULL;
+
+	//We only calculate for one datapoint colour at a time to see which centroid that node is closest to
+	distance_array = malloc(sizeof(double) * k);
+	if(!distance_array){
+		printf("Ran out of memory. Terminating now\n");
+		error_code = 1; goto cleanup_k_means;
+	}
+	//And this array tells us how many nodes are closest to a each centroid. Same as old "closePoint"
+	owned_node_count = malloc(sizeof(uint32_t) * k);
+	if(!owned_node_count){
+		printf("Ran out of memory. Terminating now\n");
+		error_code = 2; goto cleanup_k_means;
+	}
+
+	//Due to overflow I'm splitting each channel into its own thing :/
+		//A 16-bit var should be enough space to avoid overflow
+	sum_nearest_A = malloc(sizeof(uint16_t) * k);
+	if(!sum_nearest_A){
+		printf("Ran out of memory. Terminating now\n");
+		error_code = 3; goto cleanup_k_means;
+	}
+	sum_nearest_R = malloc(sizeof(uint16_t) * k);
+	if(!sum_nearest_R){
+		printf("Ran out of memory. Terminating now\n");
+		error_code = 4; goto cleanup_k_means;
+	}
+	sum_nearest_G = malloc(sizeof(uint16_t) * k);
+	if(!sum_nearest_G){
+		printf("Ran out of memory. Terminating now\n");
+		error_code = 5; goto cleanup_k_means;
+	}
+	sum_nearest_B = malloc(sizeof(uint16_t) * k);
+	if(!sum_nearest_B){
+		printf("Ran out of memory. Terminating now\n");
+		error_code = 6; goto cleanup_k_means;
+	}
+	new_centroids = malloc(sizeof(uint16_t) * k);
+	if(!new_centroids){
+		printf("Ran out of memory. Terminating now\n");
+		error_code = 7; goto cleanup_k_means;
+	}
+
+	//Somewhere below here there must be a memory leak...how???
+	double px[4];
+	int nearest;	//Default zero
+	int same;		//Used to check if the centroids have changed once updated
+	while(1){
+		//Reset the arrays for a new loop
+		for(int i = 0; i < k; i++){
+			sum_nearest_A[i] = 0;
+			sum_nearest_R[i] = 0;
+			sum_nearest_G[i] = 0;
+			sum_nearest_B[i] = 0;
+			new_centroids[i] = 0;
+			owned_node_count[i] = 0;
+		}
+
+		//Calculates the distance between points and centroids
+		current = full_palette_head;
+		while(current != NULL){	//Goes "colour_count" times
+			nearest = 0;
+			for(int i = 0; i < k; i++){
+				px[0] = pow(bit_extracted(current->colour, 4, 12) - bit_extracted(output_palette[i], 4, 12), 2);
+				px[1] = pow(bit_extracted(current->colour, 4, 8) - bit_extracted(output_palette[i], 4, 8), 2);
+				px[2] = pow(bit_extracted(current->colour, 4, 4) - bit_extracted(output_palette[i], 4, 4), 2);
+				px[3] = pow(bit_extracted(current->colour, 4, 0) - bit_extracted(output_palette[i], 4, 0), 2);
+				distance_array[i] = sqrt(px[0] + px[1] + px[2] + px[3]);
+				if(distance_array[i] < distance_array[nearest]){
+					nearest = i;
+				}
 			}
-			output_palette[palette_index] = texture[i];
-			palette_index++;
+			owned_node_count[nearest]++;	//The node in the i loop belongs to the "nearest" centroid
+			sum_nearest_A[nearest] += bit_extracted(current->colour, 4, 12);
+			sum_nearest_R[nearest] += bit_extracted(current->colour, 4, 8);
+			sum_nearest_G[nearest] += bit_extracted(current->colour, 4, 4);
+			sum_nearest_B[nearest] += bit_extracted(current->colour, 4, 0);
+			current = current->next;
+		}
+
+		//Calculate the final value for the new centroids
+		for(int i = 0; i < k; i++){
+			uint32_t local_owned_count = owned_node_count[i];
+			if(local_owned_count == 0){	//Avoid divide by zero errors
+				continue;
+			}
+			new_centroids[i] = (sum_nearest_A[i] / owned_node_count[i]) << 12;
+			new_centroids[i] += (sum_nearest_R[i] / owned_node_count[i]) << 8;
+			new_centroids[i] += (sum_nearest_G[i] / owned_node_count[i]) << 4;
+			new_centroids[i] += (sum_nearest_B[i] / owned_node_count[i]) << 0;
+		}
+
+		//Checking if the centroids are the same as they were before
+		same = 0;
+		for(int i = 0; i < k; i++){
+			if(new_centroids[i] == output_palette[i]){	//If the centroid hasn't changed
+				same++;
+			}
+			output_palette[i] = new_centroids[i];
+		}
+		if(k <= same){	//If none of the centroids changed, break from the while loop
+			break;
 		}
 	}
-	// printf("Total colours: %d\n", palette_index);
 
-	//Just to make sure there's no garbage info
-	for(int i = palette_index; i < 16; i++){
-		output_palette[i] = 0;
-		// printf("%d, BLANK, %x\n", palette_index, output_palette[i]);
+	cleanup_k_means:
+
+	free(distance_array);
+	free(owned_node_count);
+	free(sum_nearest_A);
+	free(sum_nearest_R);
+	free(sum_nearest_G);
+	free(sum_nearest_B);
+	free(new_centroids);
+
+	return error_code;
+}
+
+//This almost never gets near 16 colours. Best I've seen is 10...
+int8_t reduce_colours(uint32_t * texture, uint16_t height, uint16_t * output_palette,
+	uint16_t colour_limit){
+	//Get a linked list of all colours present
+	colour_entry_t * head = NULL;
+	colour_entry_t * tail = NULL;
+	colour_entry_t * current = NULL;
+	uint16_t * palette_comparison = NULL;
+	uint32_t colour_count = 0;
+	int8_t return_value = 0;
+	for(uint32_t i = 0; i < 32 * height; i++){
+		bool colour_found = false;
+		current = head;
+		while(current != NULL){
+			if(current->colour == texture[i]){
+				colour_found = true;
+				break;
+			}
+			current = current->next;
+		}
+		if(!colour_found){
+			colour_entry_t * new_colour = malloc(sizeof(colour_entry_t));
+			if(!new_colour){
+				return_value = 1;
+				goto cleanup;
+			}
+			if(head == NULL){
+				head = new_colour;
+			}
+			if(tail != NULL){
+				tail->next = new_colour;
+			}
+			tail = new_colour;
+			new_colour->colour = texture[i];
+			new_colour->next = NULL;
+
+			colour_count++;
+		}
 	}
 
-	return true;
+	printf("%d unique colours were detected\n", colour_count);
+
+	//If we are already under or equal to the colour limit, then there's no reason to
+		//Perform K-means. So we create the paletted texture here and return with code -1
+	if(colour_count <= colour_limit){
+		return_value = -1;
+		colour_entry_t * traverse = head;
+		uint8_t i = 0;
+		while(traverse != NULL){
+			output_palette[i] = traverse->colour;
+			i++;
+			traverse = traverse->next;
+		}
+		goto cleanup;
+	}
+
+	printf("WARNING: More than %d colours between all source images.\n", colour_limit);
+	printf("Performing colour-reduction process. Result may be undesireable\n");
+	printf("since the algorithm isn't perfect so I recommend making your own\n");
+	printf("%d-colour image and then run it through this program again for better results.\n", colour_limit);
+
+	//Perform K-means with "colour_limit" centroids
+	//Its basically 3 steps:
+		//Step 1 is randomly distribute the centroids (Give them random values)
+		//Enter a loop
+			//Step 2, have a list saying which centroid each point is closest to. (num centroids * "colour_count length boolean array"s)
+			//Step 3 is find the mean for each centroid's given list
+
+		//Eg. Node 1, 3, 4 and 6 are closest to C1. Node 2 and 5 are closest to C2.
+			//C1's new position is the mean of nodes 1, 3, 4 and 6 and C2's new pos is mean of Node 2 and 5
+			//Note to seperate argb when doing these calculation
+
+	palette_comparison = malloc(sizeof(uint16_t) * colour_count);
+	if(!palette_comparison){
+		return_value = 2;
+		goto cleanup;
+	}
+
+	//Attempts to find the 16 best colours, but never gets near that...
+	uint8_t k_res = k_means(output_palette, colour_limit, head);
+	if(k_res){
+		return_value = 2 + k_res;
+		goto cleanup;
+	}
+
+	//Find distance between each node in the colour_entry_t entry and each palette colour to find the best substitute
+	double px[4];
+	current = head;
+	for(int i = 0; i < colour_count; i++){
+		uint32_t nearest_index;	//Always set to zero in first iteration of J loop so never uninitialised
+		double distance = -1;
+		for(int j = 0; j < colour_limit; j++){
+			px[0] = pow(bit_extracted(current->colour, 4, 12) - bit_extracted(output_palette[j], 4, 12), 2);
+			px[1] = pow(bit_extracted(current->colour, 4, 8) - bit_extracted(output_palette[j], 4, 8), 2);
+			px[2] = pow(bit_extracted(current->colour, 4, 4) - bit_extracted(output_palette[j], 4, 4), 2);
+			px[3] = pow(bit_extracted(current->colour, 4, 0) - bit_extracted(output_palette[j], 4, 0), 2);
+			double current_distance = sqrt(px[0] + px[1] + px[2] + px[3]);
+			if(distance < 0 || current_distance < distance){
+				distance = current_distance;
+				nearest_index = j;
+			}
+		}
+		palette_comparison[i] = output_palette[nearest_index];
+		current = current->next;
+	}
+
+	//Modify the colours in the texture itself
+	for(int i = 0; i < 32 * height; i++){
+		current = head;
+		uint32_t thing = 0;
+		int j = 0;
+		while(current != NULL){
+			if(current->colour == texture[i]){
+				texture[i] = palette_comparison[j];
+				break;
+			}
+			current = current->next;
+			j++;
+		}
+	}
+
+	cleanup:
+
+	if(palette_comparison){
+		free(palette_comparison);
+	}
+
+	//Destory the old linked list
+	while(head != NULL){
+		colour_entry_t * old = head;
+		head = head->next;
+		free(old);
+	}
+
+	return return_value;
 }
 
 //Used for the preview function
@@ -260,11 +519,15 @@ int main(int argC, char ** argV){
 	}
 
 	rgba8888_to_argb4444(input_image, height);
-	bool is_4BPP = texture_within_16_colours(input_image, height, output_palette);
-	if(!is_4BPP){
-		printf("More than 16 colours isn't supported yet\n");
+	srand(time(NULL));
+	int8_t reduce_val = reduce_colours(input_image, height, output_palette, 16);
+	if(reduce_val > 0){
+		printf("Ran out of memory. Terminating now\n");
 		free(input_image);
 		return 1;
+	}
+	if(reduce_val == -1){
+		printf("Colours didn't need to be reduced\n");
 	}
 
 	if(flag_preview){
