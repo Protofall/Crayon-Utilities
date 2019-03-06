@@ -44,7 +44,7 @@ uint8_t png_to_rgba8888(uint8_t in_img_index, uint32_t ** input_image, uint16_t 
 		return 3;
 	}
 	if(p_det.height != buff_height){
-		printf("%s has incorrect height\nHeight should be 72\nThis image's height is %d\n",
+		printf("%s has incorrect height\nHeight should be 56\nThis image's height is %d\n",
 			argV[in_img_index], p_det.height);
 		return 3;
 	}
@@ -73,7 +73,8 @@ void rgba8888_to_argb4444(uint32_t * input_image, uint16_t width, uint16_t heigh
 		g = bit_extracted(input_image[i], 8, 16) >> 4;
 		b = bit_extracted(input_image[i], 8, 8) >> 4;
 		a = bit_extracted(input_image[i], 8, 0) >> 4;
-		input_image[i] = (a << 12) + (r << 8) + (g << 4) + b;
+		input_image[i] = (a << 12) + (r << 8) + (g << 4) + b;	//ARGB4444
+
 	}
 	return;
 }
@@ -407,7 +408,7 @@ uint8_t argb4444_to_png_details(uint32_t * pixel_data, uint16_t width, int heigh
 
 int16_t get_index(uint32_t colour, uint16_t * palette, uint16_t length){
 	for(int i = 0; i < length; i++){
-		if(palette[i] == colour){
+		if(colour == palette[i]){
 			return i;
 		}
 	}
@@ -421,40 +422,33 @@ uint8_t create_binary(uint32_t * input_image, uint16_t * palette, uint8_t ** out
 		*output_image = malloc(sizeof(uint8_t) * width * height * 2);				//Not paletted
 		if(!(*output_image)){printf("Ran out of memory. Terminating now\n"); return 1;}
 		for(int i = 0; i < width * height; i++){
-			(*output_image)[output_index++] = bit_extracted(input_image[i], 8, 8);
 			(*output_image)[output_index++] = bit_extracted(input_image[i], 8, 0);
+			(*output_image)[output_index++] = bit_extracted(input_image[i], 8, 8);
 		}
 	}
 	else if(mode == 2){
 		*output_image = malloc((sizeof(uint8_t) * width * height) + (256 * 2));		//8BPP
 		if(!(*output_image)){printf("Ran out of memory. Terminating now\n"); return 1;}
 		for(int i = 0; i < 256; i++){
-			(*output_image)[output_index++] = bit_extracted(palette[i], 8, 8);
 			(*output_image)[output_index++] = bit_extracted(palette[i], 8, 0);
+			(*output_image)[output_index++] = bit_extracted(palette[i], 8, 8);
 		}
-		printf("8Offset is now %d\n", output_index);
 		for(int i = 0; i < width * height; i++){
-			(*output_image)[output_index++] = get_index(bit_extracted(input_image[i], 8, 8), palette, 256);
-			(*output_image)[output_index++] = get_index(bit_extracted(input_image[i], 8, 0), palette, 256);
-			i++;
+			(*output_image)[output_index++] = get_index(input_image[i], palette, 256);
 		}
-		printf("Offset %d\n", output_index);	//8576. 8576 - 512 = 8064
 	}
-	else if(mode == 3){	//This is unfinished
+	else if(mode == 3){
 		*output_image = malloc((sizeof(uint8_t) * width * height / 2) + (16 * 2));	//4BPP
 		if(!(*output_image)){printf("Ran out of memory. Terminating now\n"); return 1;}
 		for(int i = 0; i < 16; i++){
-			(*output_image)[output_index++] = bit_extracted(palette[i], 8, 8);
 			(*output_image)[output_index++] = bit_extracted(palette[i], 8, 0);
+			(*output_image)[output_index++] = bit_extracted(palette[i], 8, 8);
 		}
-		printf("4Offset is now %d\n", output_index);
-		for(int i = 0; i < width * height / 2; i++){
-			(*output_image)[output_index] = get_index(bit_extracted(input_image[i], 4, 12), palette, 16);
-			(*output_image)[output_index++] += get_index(bit_extracted(input_image[i], 4, 8), palette, 16) << 4;
-			(*output_image)[output_index] = get_index(bit_extracted(input_image[i], 4, 4), palette, 16);
-			(*output_image)[output_index++] += get_index(bit_extracted(input_image[i], 4, 0), palette, 16) << 4;
+		for(int i = 0; i < width * height; i++){
+			(*output_image)[output_index] = get_index(input_image[i], palette, 16) << 4;
+			i++;
+			(*output_image)[output_index++] += get_index(input_image[i], palette, 16);
 		}
-		printf("Offset %d\n", output_index);	//4064. It should be 2048 (2016 + 32)
 	}
 
 	return 0;
@@ -524,12 +518,19 @@ int main(int argC, char ** argV){
 	uint16_t width = 0;
 	uint8_t * output_image = NULL;	//4BPP, Each element contains two texels
 	uint16_t * output_palette = NULL;
-	uint16_t total_colours = 0;
+	uint16_t total_colours;
+	uint16_t binary_size;
+	if(mode == 1){
+		total_colours = 0;
+		binary_size = 8064;
+	}
 	if(mode == 2){
 		total_colours = 256;
+		binary_size = (total_colours * 2) + 4032;
 	}
 	else if(mode == 3){
 		total_colours = 16;
+		binary_size = (total_colours * 2) + 2016;
 	}
 	output_palette = malloc(sizeof(uint16_t) * total_colours);
 	for(int i = 0; i < total_colours; i++){	//Not needed, but is good practice
@@ -559,7 +560,7 @@ int main(int argC, char ** argV){
 		printf("Ran out of memory. Terminating now\n");
 		free(input_image);
 		free(output_image);
-		return 1;
+		return 4;
 	}
 	if(reduce_val == -1){
 		printf("Colours didn't need to be reduced\n");
@@ -567,7 +568,7 @@ int main(int argC, char ** argV){
 
 	if(flag_preview){
 		png_details_t p_det;
-		if(argb4444_to_png_details(input_image, width, height, &p_det)){return 190;}
+		if(argb4444_to_png_details(input_image, width, height, &p_det)){return 5;}
 		write_png_file(argV[preview_index], &p_det);
 	}
 
@@ -577,14 +578,13 @@ int main(int argC, char ** argV){
 	if(error){
 		printf("Error occurred\n");
 		free(output_image);
-		return error;
+		return 5 + error;
 	}
 
-	// printf("BINARY OUTPUT ISN'T FINISHED YET, %d\n\n", mode);
-	error = write_to_file(argV[output_image_index], sizeof(uint8_t), width * height / 2, output_image);
+	error = write_to_file(argV[output_image_index], sizeof(uint8_t), binary_size, output_image);
 	if(error){
 		free(output_image);
-		return error;
+		return 6 + error;	//Goes to 8
 	}
 
 	free(output_image);

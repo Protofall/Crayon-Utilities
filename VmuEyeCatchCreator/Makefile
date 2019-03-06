@@ -29,9 +29,11 @@ clean:
 	rm -f *.png
 
 run:
-	./VmuEyeCatchCreator --input-image textures/simple1.png --output-binary IMAGE1.BIN --mode 1
-	./VmuEyeCatchCreator --input-image textures/lines.png --output-binary IMAGE2.BIN --mode 2 --preview proc_lines.png
-	./VmuEyeCatchCreator --input-image textures/lines.png --output-binary IMAGE3.BIN --mode 3 --preview proc_lines.png	#Has 28 colours, colour count is reduced
+	./VmuEyeCatchCreator --input-image textures/simple1.png --output-binary eyecatch1.bin --mode 1
+	./VmuEyeCatchCreator --input-image textures/simple1.png --output-binary eyecatch2.bin --mode 2
+	./VmuEyeCatchCreator --input-image textures/simple1.png --output-binary eyecatch3.bin --mode 3
+	./VmuEyeCatchCreator --input-image textures/lines.png --output-binary eyecatch_lines2.bin --mode 2 --preview proc_lines2.png
+	./VmuEyeCatchCreator --input-image textures/lines.png --output-binary eyecatch_lines_3.bin --mode 3 --preview proc_lines3.png	#Has 28 colours, colour count is reduced
 
 
 
