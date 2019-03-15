@@ -13,7 +13,83 @@ void getARGB(uint8_t * argb, uint32_t extracted){
 	return;
 }
 
-int makeVmuLcdIcon(char * source, char * dest, char * png, bool invert){
+
+//Account for invert here
+int load_png(char * source, uint32_t ** buffer_mono, bool invert){
+	uint16_t buff_width = 48;
+	uint16_t buff_height = 32;
+	*buffer_mono = malloc(sizeof(uint32_t) * buff_width * buff_height);
+	if(!(*buffer_mono)){printf("Ran out of memory. Terminating now\n"); return 1;}
+	uint32_t * current_texel = *buffer_mono;
+	if(invert){
+		current_texel += (48 * 31);
+	}
+	png_details_t p_det;
+
+	if(read_png_file(source, &p_det)){printf("File %s couldn't be read. Terminating now\n", source); return 2;}
+	if(p_det.width != buff_width){
+		printf("%s has incorrect width\nWidth should be 72\nThis image's width is %d\n", source, p_det.width);
+		return 3;
+	}
+	if(p_det.height != buff_height){
+		printf("%s has incorrect height\nHeight should be 56\nThis image's height is %d\n", source, p_det.height);
+		return 3;
+	}
+
+	for(int y = 0; y < p_det.height; y++){
+		for(int x = 0; x < p_det.width; x++){
+			png_bytep px = &(p_det.row_pointers[y][x * 4]);
+			current_texel[0] = (px[0] << 24) + (px[1] << 16) + (px[2] << 8) + px[3];
+			current_texel++;
+			if(invert && x == p_det.width - 1){
+				current_texel -= 2 * p_det.width;
+			}
+		}
+	}
+
+	free_png_texture_buffer(&p_det);
+
+	return 0;
+}
+
+int make_binary(char * dest, uint32_t * buffer_mono, uint8_t ** buffer_binary, uint16_t frames){
+	return 0;
+}
+
+int make_png(char * dest, uint32_t * buffer_mono){
+	png_details_t p_det;
+	p_det.height = 32;
+	p_det.width = 48;
+
+	p_det.color_type = PNG_COLOR_MASK_COLOR + PNG_COLOR_MASK_ALPHA;	//= 2 + 4 = 6. They describe the color_type field in png_info
+	p_det.bit_depth = 8;	//rgba8888, can be 1, 2, 4, 8, or 16 bits/channel (from IHDR)
+
+	//Allocate space
+	p_det.row_pointers = (png_bytep*)malloc(sizeof(png_bytep) * p_det.height);
+	if(!p_det.row_pointers){printf("Ran out of memory. Terminating now\n"); return 1;}
+	for(int y = 0; y < p_det.height; y++){
+		p_det.row_pointers[y] = (png_byte*)malloc(sizeof(png_byte) * p_det.width * 4);
+		if(!p_det.row_pointers[y]){
+			for(int i = 0; i < y; i++){	//Free the rest of the array
+				free(p_det.row_pointers[i]);
+			}
+			free(p_det.row_pointers);
+			printf("Ran out of memory. Terminating now\n");
+			return 1;
+		}
+	}
+
+	for(int y = 0; y < p_det.height; y++){
+		for(int x = 0; x < p_det.width; x++){
+			png_bytep px = &(p_det.row_pointers[y][x * 4]);
+
+			px[0] = bit_extracted(buffer_mono[(y * p_det.width) + x], 8, 24);
+			px[1] = bit_extracted(buffer_mono[(y * p_det.width) + x], 8, 16);
+			px[2] = bit_extracted(buffer_mono[(y * p_det.width) + x], 8, 8);
+			px[3] = bit_extracted(buffer_mono[(y * p_det.width) + x], 8, 0);
+		}
+	}
+	write_png_file(dest, &p_det);	//Free-s the struct once drawn
 	return 0;
 }
 
@@ -88,6 +164,11 @@ void invalid_input(){
 	exit(1);
 }
 
+//Just to make it more obvious to people viewing the code what is happening
+bool string_equals(char * a, char * b){
+	return !strcmp(a, b);
+}
+
 int main(int argC, char *argV[]){
 	bool flag_input_image = false;
 	bool flag_output_binary = false;
@@ -126,29 +207,15 @@ int main(int argC, char *argV[]){
 		invalid_input();
 	}
 
-	makeVmuLcdIcon(argV[input_image_index], argV[output_binary_index], argV[output_png_index], flag_invert);
+	uint32_t * buffer_mono = NULL;
+	uint8_t * buffer_binary = NULL;
+	uint16_t frames = 1;
 
-	return 1;
+	load_png(argV[input_image_index], &buffer_mono, flag_invert);
+	make_png(argV[output_png_index], buffer_mono);
+	make_binary(argV[output_binary_index], buffer_mono, &buffer_binary, frames);
 
-	// //Check input for options
-	// bool flag_invert;
-	// bool flag_help;
-	// for(int i = 1; i < argC; i++){
-	// 	!strcmp(argV[i], "--invert") ? flag_invert = true : flag_invert = false;
-	// 	!strcmp(argV[i], "--help") ? flag_help = true : flag_help = false;
-	// }
+	free(buffer_mono);
 
-	// if(flag_help || (argC != 3 && argC != 4)){
-	// 	printf("\nUsage:\n./VmuLcdIconCreator [Source_file_path] [Dest_file_path] [options]\n\nList of potential options:\n");
-	// 	printf("--invert	Flips y/height axis. Note VMU is upside down in a DC controller\n");
-	// 	printf("--help		Display this message\n");
-	// 	return 1;
-	// }
-
-	// printf("\nPlease note this is only confirmed to work with RGB888 and ARGB8888 textures\n");
-	// printf("Any other format and the resulting image might not work right\n");
-
-	// makeVmuLcdIcon(argV[1], argV[2], flag_invert);
-	
-	// return 0;
+	return 0;
 }

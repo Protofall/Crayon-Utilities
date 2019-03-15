@@ -277,7 +277,7 @@ uint8_t load_dtex(char * texture_path, uint32_t ** rgba8888_buffer, uint16_t * h
 	}
 
 	//When adding compression support, also malloc an array to dump the compressed file
-	*rgba8888_buffer = (uint32_t *) malloc(sizeof(uint32_t) * dtex_header.height * dtex_header.width);_image
+	*rgba8888_buffer = (uint32_t *) malloc(sizeof(uint32_t) * dtex_header.height * dtex_header.width);
 	if(*rgba8888_buffer == NULL){
 		printf("Malloc failed\n");
 		fclose(texture_file);
