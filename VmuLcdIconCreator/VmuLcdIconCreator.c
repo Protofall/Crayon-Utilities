@@ -5,15 +5,6 @@
 
 #include "png_assist.h"
 
-void getARGB(uint8_t * argb, uint32_t extracted){
-	argb[0] = extracted >> 24;
-	argb[1] = (extracted >> 16) % (1 << 8);
-	argb[2] = (extracted >> 8) % (1 << 8);
-	argb[3] = extracted % (1 << 8);
-	return;
-}
-
-
 //Account for invert here
 int load_png(char * source, uint32_t ** buffer_mono, bool invert){
 	uint16_t buff_width = 48;
@@ -52,7 +43,8 @@ int load_png(char * source, uint32_t ** buffer_mono, bool invert){
 	return 0;
 }
 
-int make_binary(char * dest, uint32_t * buffer_mono, uint8_t ** buffer_binary, uint16_t frames){
+//Converts all pixels to a monochrome colour
+int convert_to_monochrome(uint32_t * buffer_mono){
 	return 0;
 }
 
@@ -90,6 +82,61 @@ int make_png(char * dest, uint32_t * buffer_mono){
 		}
 	}
 	write_png_file(dest, &p_det);	//Free-s the struct once drawn
+	return 0;
+}
+
+void getARGB(uint8_t * argb, uint32_t extracted){
+	argb[0] = extracted >> 24;
+	argb[1] = (extracted >> 16) % (1 << 8);
+	argb[2] = (extracted >> 8) % (1 << 8);
+	argb[3] = extracted % (1 << 8);
+	return;
+}
+
+//This isn't correct
+int make_binary(char * dest, uint32_t * buffer_mono, uint16_t frames){
+	int x = 48;
+	int y = 32;
+	FILE * write_ptr = fopen(dest,"wb");  // w for write, b for binary
+	if(!write_ptr){
+		fprintf(stderr, "\nFile %s cannot be opened\n", dest);
+		return 1;
+	}
+	uint32_t * traversal = buffer_mono;
+	uint32_t extracted;
+	uint8_t buffer[6];	//We need to output in Little-endian so we have to store 6 bytes per row and then write to the file
+	uint8_t buffer_count = 0;
+
+	uint8_t argb[4];
+	uint8_t * colour = argb;	//For some reason I can't pass a reference to argb into getARGB() :roll_eyes:
+
+	for(int i = 0; i < x * y / 8; i++){	//We have a for-loop that goes 8 times within this loop
+		buffer[5- buffer_count] = 0;
+
+		//Need to pack 8 pixels into one byte (One element of buffer[])
+		for(int j = 0; j < 8; j++){
+			memcpy(&extracted, traversal, 1);	//Extracts all 4 bytes (RGB888 is converted to ARGB8888 with stbi_load(). Alpha channel is zero)
+
+			getARGB(colour, extracted);
+
+			//If the colours are "strong enough and there's enough opaqueness (Or we have RGB)" then add a black pixel
+			if(argb[1] + argb[2] + argb[3] < (255/2) * 3 && (argb[0] > (255/2))){
+				buffer[5 - buffer_count] |= (1 << j);	//VMU icons use 0 for no pixel and 1 for pixel
+			}
+			traversal++;
+		}
+
+		buffer_count++;
+
+		//When we've read a row, write to file
+		if(buffer_count == 6){
+			fwrite(buffer, sizeof(uint8_t), sizeof(buffer), write_ptr);
+			buffer_count = 0;
+		}
+	}
+
+	fclose(write_ptr);
+
 	return 0;
 }
 
@@ -159,7 +206,9 @@ void invalid_input(){
 	printf("\nWrong number of arguments provided. This is the format\n");
 	printf("./VmuLcdIconCreator --input [png_filename] --output-binary [filename] *--output-png [filename] *--invert\n\n");
 	printf("Note you can only have 1 png file\nThe PNG must be 48 pixels wide and 32 pixels high\n");
-	printf("Preview is optional and just gives you a preview of the binary\n");
+	printf("Png output is optional and just gives you a preview of the monochrome image that should be produced\n");
+
+	printf("\nPng output is currently disabled\n");
 
 	exit(1);
 }
@@ -208,12 +257,11 @@ int main(int argC, char *argV[]){
 	}
 
 	uint32_t * buffer_mono = NULL;
-	uint8_t * buffer_binary = NULL;
 	uint16_t frames = 1;
 
 	load_png(argV[input_image_index], &buffer_mono, flag_invert);
-	make_png(argV[output_png_index], buffer_mono);
-	make_binary(argV[output_binary_index], buffer_mono, &buffer_binary, frames);
+	if(0 && flag_output_png){make_png(argV[output_png_index], buffer_mono);}
+	make_binary(argV[output_binary_index], buffer_mono, frames);
 
 	free(buffer_mono);
 
