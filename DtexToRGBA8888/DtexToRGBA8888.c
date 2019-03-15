@@ -143,9 +143,8 @@ void yuv422_to_rgba8888(dtex_header_t * dtex_header, uint32_t * dtex_buffer){
 	}
 	return;
 }
-
 //This is the function that JamoHTP did. It boggled my mind too much
-uint32_t get_twiddled_index(uint16_t w, uint16_t h, uint32_t p){
+uint32_t get_untwiddled_index(uint16_t w, uint16_t h, uint32_t p){
 	uint32_t ddx = 1, ddy = w;
 	uint32_t q = 0;
 
@@ -278,7 +277,7 @@ uint8_t load_dtex(char * texture_path, uint32_t ** rgba8888_buffer, uint16_t * h
 	}
 
 	//When adding compression support, also malloc an array to dump the compressed file
-	*rgba8888_buffer = (uint32_t *) malloc(sizeof(uint32_t) * dtex_header.height * dtex_header.width);
+	*rgba8888_buffer = (uint32_t *) malloc(sizeof(uint32_t) * dtex_header.height * dtex_header.width);_image
 	if(*rgba8888_buffer == NULL){
 		printf("Malloc failed\n");
 		fclose(texture_file);
@@ -315,7 +314,7 @@ uint8_t load_dtex(char * texture_path, uint32_t ** rgba8888_buffer, uint16_t * h
 					texels[1] = bit_extracted(code_book[(2 * extracted)], 16, 16);
 					texels[2] = bit_extracted(code_book[(2 * extracted) + 1], 16, 0);
 					texels[3] = bit_extracted(code_book[(2 * extracted) + 1], 16, 16);
-					int index = get_twiddled_index(dtex_header.width / 2, dtex_header.height / 2, i);
+					int index = get_untwiddled_index(dtex_header.width / 2, dtex_header.height / 2, i);
 					index = ((index % (dtex_header.width / 2)) * 2) + (((index / (dtex_header.width / 2)) * 2) * dtex_header.width);	//Get the true index since
 																																		//dims are different
 					(*rgba8888_buffer)[index] = texels[0];
@@ -349,7 +348,7 @@ uint8_t load_dtex(char * texture_path, uint32_t ** rgba8888_buffer, uint16_t * h
 					texels[14] = bit_extracted(code_book[(2 * extracted[1]) + 1], 8, 16);
 					texels[15] = bit_extracted(code_book[(2 * extracted[1]) + 1], 8, 24);
 
-					int index = get_twiddled_index(dtex_header.width / 4, dtex_header.height / 4, i);
+					int index = get_untwiddled_index(dtex_header.width / 4, dtex_header.height / 4, i);
 					index = ((index % (dtex_header.width / 4)) * 4) + (((index / (dtex_header.width / 4)) * 4) * dtex_header.width);	//Get the true index since
 																																		//dims are different
 					(*rgba8888_buffer)[index + 0] = texels[0];
@@ -395,7 +394,7 @@ uint8_t load_dtex(char * texture_path, uint32_t ** rgba8888_buffer, uint16_t * h
 					texels[14] = bit_extracted(code_book[(2 * extracted) + 1], 4, 24);
 					texels[15] = bit_extracted(code_book[(2 * extracted) + 1], 4, 28);
 
-					int index = get_twiddled_index(dtex_header.width / 4, dtex_header.height / 4, i);
+					int index = get_untwiddled_index(dtex_header.width / 4, dtex_header.height / 4, i);
 					index = ((index % (dtex_header.width / 4)) * 4) + (((index / (dtex_header.width / 4)) * 4) * dtex_header.width);	//Get the true index since
 																																		//dims are different
 					(*rgba8888_buffer)[index + 0] = texels[0];
@@ -435,7 +434,7 @@ uint8_t load_dtex(char * texture_path, uint32_t ** rgba8888_buffer, uint16_t * h
 			for(int i = 0; i < dtex_header.width * dtex_header.height; i++){
 				if(fread(&extracted, read_size, 1, texture_file) != 1){LOAD_ERROR(30);}
 				if(twiddled){
-					index = get_twiddled_index(dtex_header.width, dtex_header.height, i);	//Given i, it says which element should be there to twiddle it
+					index = get_untwiddled_index(dtex_header.width, dtex_header.height, i);	//Given i, it says which element should be there to twiddle it
 				}
 				else{
 					index = i;
@@ -448,7 +447,7 @@ uint8_t load_dtex(char * texture_path, uint32_t ** rgba8888_buffer, uint16_t * h
 			for(int i = 0; i < dtex_header.width * dtex_header.height; i++){
 				if(fread(&extracted, read_size, 1, texture_file) != 1){LOAD_ERROR(30);}
 				if(twiddled){
-					index = get_twiddled_index(dtex_header.width, dtex_header.height, i);	//Given i, it says which element should be there to twiddle it
+					index = get_untwiddled_index(dtex_header.width, dtex_header.height, i);	//Given i, it says which element should be there to twiddle it
 				}
 				else{
 					index = i;
@@ -465,7 +464,7 @@ uint8_t load_dtex(char * texture_path, uint32_t ** rgba8888_buffer, uint16_t * h
 				byte_section[1] = bit_extracted(extracted, 4, 0);
 				for(int j = 0; j < 2; j++){
 					if(twiddled){
-						index = get_twiddled_index(dtex_header.width, dtex_header.height, i + (1 - j));
+						index = get_untwiddled_index(dtex_header.width, dtex_header.height, i + (1 - j));
 					}
 					else{
 						index = i + (1 - j);

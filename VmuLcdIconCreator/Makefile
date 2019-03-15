@@ -1,28 +1,33 @@
-#Program made by Protofall for anyone to use free of charge
 
-CPPFLAGS = --std=gnu++11
-
-CC = g++
-PROG = VmuLcdIconCreator
-EXT = 
+EXE = VmuLcdIconCreator
+EXT =
+CPPFLAGS = -std=gnu++11 -lpng -lm
+CFLAGS = -lpng -lm -g
+#Add a -g to the flags to get line number info for valgrind
 
 CPPFILES = $(wildcard *.cpp)
-OBJS = $(CPPFILES:%.cpp=%.o)
+CFILES = $(wildcard *.c)
+OBJS = $(CPPFILES:%.cpp=%.o) $(CFILES:%.c=%.o)
 
-.PHONY: all clean
+.PHONY: all clean run
 
-all: clean $(PROG)
+all: clean $(EXE)
 
-$(PROG): $(OBJS)
-	$(CC) -o $(PROG) $(OBJS) --std=gnu++11
+$(EXE): $(OBJS)
+	gcc -o $(EXE) $(OBJS) $(CFLAGS) 
 
-#stb_image.h requires c++11
 %.o: %.cpp
-	$(CC) $(CPPFLAGS) -c $<
+	g++ $(CPPFLAGS) -c $<
+
+%.o: %.c
+	gcc $(CFLAGS) -c $<
 
 clean:
-	rm -f *.o $(PROG)$(EXT)
+	rm -f *.o $(EXE)$(EXT)
 	rm -f *.bin
+	rm -f *.BIN
+	rm -f *.png
 
-example:
-	./$(PROG) "icon_VMU_LCD.png" "LCD.bin" "--invert"
+run:
+	./$(EXE) --input icon_VMU_LCD.png --output-binary vmu_lcd1.bin --output-png preview1.png --invert	#For displaying via DC controller
+	./$(EXE) --input icon_VMU_LCD.png --output-binary vmu_lcd2.bin --output-png preview2.png			#For displaying in handheld mode
