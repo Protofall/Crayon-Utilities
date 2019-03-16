@@ -31,3 +31,4 @@ clean:
 run:
 	./$(EXE) --input images/icon_VMU_LCD.png --output-binary vmu_lcd1.bin --output-png preview1.png --invert	#For displaying via DC controller
 	./$(EXE) --input images/icon_VMU_LCD.png --output-binary vmu_lcd2.bin --output-png preview2.png			#For displaying in handheld mode
+	./$(EXE) --input images/sure.png --output-binary vmu_lcd3.bin --output-png preview3.png

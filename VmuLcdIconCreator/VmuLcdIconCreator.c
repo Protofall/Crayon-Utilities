@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <math.h>
 
 #include "png_assist.h"
 
@@ -43,8 +44,57 @@ int load_png(char * source, uint32_t ** buffer_mono, bool invert){
 	return 0;
 }
 
+//Input is in RGBA format
+//0 is A, 1 is R, 2 is G, 3 is B which is ARGB format
+//Also because I want to pass in an array of a fixed size, I must use it like so
+void getARGB(uint8_t (*argb)[4], uint32_t extracted){
+	(*argb)[0] = bit_extracted(extracted, 8, 0);
+	(*argb)[1] = bit_extracted(extracted, 8, 24);
+	(*argb)[2] = bit_extracted(extracted, 8, 16);
+	(*argb)[3] = bit_extracted(extracted, 8, 8);
+	return;
+}
+
+#define LUMA_CALC 2	//Change this if you want a different luma calc
+
 //Converts all pixels to a monochrome colour
+//From: https://stackoverflow.com/questions/596216/formula-to-determine-brightness-of-rgb-color
 int convert_to_monochrome(uint32_t * buffer_mono){
+	uint8_t height = 32;
+	uint8_t width = 48;
+	uint8_t argb[4];
+	uint32_t extracted;
+	float monochrome;
+	for(int i = 0; i < height * width; i++){
+		getARGB(&argb, buffer_mono[i]);
+
+		if(argb[0] < (float)255/(float)2.0){
+			buffer_mono[i] = 0xFFFFFFFF;	//White
+			continue;
+		}
+
+		#if LUMA_CALC == 0
+			monochrome = ((0.2126*argb[1]) + (0.7152*argb[2]) + (0.0722*argb[3]));
+		#elif LUMA_CALC == 1	//Colours appear softer
+			monochrome = ((0.299*argb[1]) + (0.587*argb[2]) + (0.114*argb[3]));
+		#elif LUMA_CALC == 2	//imo, this mode is the best
+			monochrome = sqrt((0.299*pow(argb[1], 2)) + (0.587*pow(argb[2], 2)) + (0.114*pow(argb[3], 2)));
+		#endif
+
+		// printf("monochrome %f\n", monochrome);
+		if(monochrome < 255/2){
+			buffer_mono[i] = 0x000000FF;	//Black
+		}
+		else{
+			buffer_mono[i] = 0xFFFFFFFF;	//White
+			// buffer_mono[i] = ((int)monochrome << 24) + ((int)monochrome << 16) + ((int)monochrome << 8) + 0xFF;	//Gives more accurate monochrome
+		}
+	}
+
+	return 0;
+}
+
+int reduce_colour_range(uint32_t * buffer_mono, uint16_t frame_count){
 	return 0;
 }
 
@@ -85,16 +135,6 @@ int make_png(char * dest, uint32_t * buffer_mono){
 	return 0;
 }
 
-//Input is in RGBA format
-//0 is A, 1 is R, 2 is G, 3 is B which is ARGB format
-void getARGB(uint8_t * argb, uint32_t extracted){
-	argb[0] = bit_extracted(extracted, 8, 0);
-	argb[1] = bit_extracted(extracted, 8, 24);
-	argb[2] = bit_extracted(extracted, 8, 16);
-	argb[3] = bit_extracted(extracted, 8, 8);
-	return;
-}
-
 int make_binary(char * dest, uint32_t * buffer_mono, uint16_t frames){
 	int x = 48;
 	int y = 32;
@@ -109,8 +149,6 @@ int make_binary(char * dest, uint32_t * buffer_mono, uint16_t frames){
 	uint8_t buffer_count = 0;
 
 	uint8_t argb[4];
-	uint8_t * colour = argb;	//For some reason I can't pass a reference to argb into getARGB() :roll_eyes:
-
 	for(int i = 0; i < x * y / 8; i++){	//We have a for-loop that goes 8 times within this loop
 		buffer[5- buffer_count] = 0;
 
@@ -118,7 +156,7 @@ int make_binary(char * dest, uint32_t * buffer_mono, uint16_t frames){
 		for(int j = 0; j < 8; j++){
 			memcpy(&extracted, traversal, sizeof(uint32_t));	//Extracts all 4 bytes (In RGBA8888 format)
 
-			getARGB(colour, extracted);	//Also converts from RGBA8888 to ARGB8888
+			getARGB(&argb, extracted);	//Also converts from RGBA8888 to ARGB8888
 
 			//If the pixel has enough alpha and the colours are "strong enough" then add a black pixel
 			if(argb[0] > (255/2) && argb[1] + argb[2] + argb[3] < (255/2) * 3){
@@ -147,8 +185,6 @@ void invalid_input(){
 	printf("Note you can only have 1 png file\nThe PNG must be 48 pixels wide and 32 pixels high\n");
 	printf("Png output is optional and just gives you a preview of the monochrome image that should be produced\n");
 
-	printf("\nPng output is currently disabled\n");
-
 	exit(1);
 }
 
@@ -160,10 +196,12 @@ bool string_equals(char * a, char * b){
 int main(int argC, char *argV[]){
 	bool flag_input_image = false;
 	bool flag_output_binary = false;
+	bool flag_frames = false;
 	bool flag_output_png = false;
 	bool flag_invert = false;
 	uint8_t input_image_index = 0;
 	uint8_t output_binary_index = 0;
+	uint16_t frame_count = 1;
 	uint8_t output_png_index = 0;
 	for(int i = 1; i < argC; i++){
 		if(string_equals(argV[i], "--input")){
@@ -179,6 +217,13 @@ int main(int argC, char *argV[]){
 			}
 			flag_output_binary = true;
 			output_binary_index = i;
+		}
+		if(string_equals(argV[i], "--frames")){
+			if(++i >= argC){
+				invalid_input();
+			}
+			flag_frames = true;
+			frame_count = atoi(argV[i]);
 		}
 		else if(string_equals(argV[i], "--output-png")){
 			if(++i >= argC){
@@ -196,11 +241,12 @@ int main(int argC, char *argV[]){
 	}
 
 	uint32_t * buffer_mono = NULL;
-	uint16_t frames = 1;
 
 	load_png(argV[input_image_index], &buffer_mono, flag_invert);
-	if(0 && flag_output_png){make_png(argV[output_png_index], buffer_mono);}
-	make_binary(argV[output_binary_index], buffer_mono, frames);
+	make_binary(argV[output_binary_index], buffer_mono, frame_count);
+	convert_to_monochrome(buffer_mono);
+	reduce_colour_range(buffer_mono, frame_count);
+	if(flag_output_png){make_png(argV[output_png_index], buffer_mono);}
 
 	free(buffer_mono);
 
