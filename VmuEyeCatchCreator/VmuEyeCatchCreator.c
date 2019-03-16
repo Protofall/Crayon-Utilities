@@ -10,7 +10,7 @@
 
 void invalid_input(){
 	printf("\nWrong number of arguments provided. This is the format\n");
-	printf("./VmuSfIconCreator --input-image [png_filename] --output-binary [filename] --mode [1 - 3] --preview [filename]\n\n");
+	printf("./VmuSfIconCreator --input-image [png_filename] --output-binary [filename] --type [1 - 3] *--preview [filename]\n\n");
 	printf("Note you can only have 1 png file\nThe PNG must be 72 pixels wide and 56 pixels high\n");
 	printf("Mode must be there with a value of 1, 2 or 3.\n");
 	printf("\t1 is a raw argb4444 binary (15.75 Blocks)\n");
@@ -492,7 +492,7 @@ int main(int argC, char ** argV){
 			flag_output_image = true;
 			output_image_index = i;
 		}
-		else if(string_equals(argV[i], "--mode")){
+		else if(string_equals(argV[i], "--type") || string_equals(argV[i], "--mode")){
 			if(++i >= argC){
 				invalid_input();
 			}
