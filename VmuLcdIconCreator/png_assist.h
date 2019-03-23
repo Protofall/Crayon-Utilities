@@ -22,6 +22,7 @@ void free_png_texture_buffer(png_details_t * p_det);
 void write_png_file(char *filename, png_details_t * p_det);
 
 int bit_extracted(uint32_t number, int k, int p);
+png_bytep get_pixel(png_details_t * p_det, int x, int y);
 uint8_t rgba8888_to_png_details(uint32_t * pixel_data, int height, int width, png_details_t * p_det);
 
 #endif

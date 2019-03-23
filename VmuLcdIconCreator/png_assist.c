@@ -140,6 +140,10 @@ int bit_extracted(uint32_t number, int k, int p){
 	return (((1 << k) - 1) & (number >> p)); 
 }
 
+png_bytep get_pixel(png_details_t * p_det, int x, int y){
+	return &(p_det->row_pointers[y][x * 4]);
+}
+
 uint8_t rgba8888_to_png_details(uint32_t * pixel_data, int height, int width, png_details_t * p_det){
 	p_det->height = height;
 	p_det->width = width;
@@ -165,7 +169,8 @@ uint8_t rgba8888_to_png_details(uint32_t * pixel_data, int height, int width, pn
 	for(int y = 0; y < p_det->height; y++){
 		for(int x = 0; x < p_det->width; x++){
 
-			png_bytep px = &(p_det->row_pointers[y][x * 4]);
+			// png_bytep px = &(p_det->row_pointers[y][x * 4]);
+			png_bytep px = get_pixel(p_det, x, y);
 			// printf("%4d, %4d = RGBA(%3d, %3d, %3d, %3d)\n", x, y, px[0], px[1], px[2], px[3]);
 			px[0] = bit_extracted(pixel_data[(y * width) + x], 8, 24);	//R
 			px[1] = bit_extracted(pixel_data[(y * width) + x], 8, 16);	//G

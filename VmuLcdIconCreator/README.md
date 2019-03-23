@@ -7,7 +7,7 @@ Dependencies:
 + libPNG
 
 Usage:
-`./VmuLcdIconCreator --input [png_filename] --output-binary [filename] *--output-png [filename] *--invert`
+`./VmuLcdIconCreator --input [png_filename] --output-binary [filename] *--invert *--output-png [filename] *--scale`
 
 The `--invert` parameter is optional, this will flip the vertical axis of the image. If writting a DC program that renders to the VMU then you'll want to set this flag (Since the VMU is upside down in the controller), but if you wanted to use this for a VMU in hand-held mode then you omit this flag.
 
