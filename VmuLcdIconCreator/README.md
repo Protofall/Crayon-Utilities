@@ -1,4 +1,4 @@
-# Protofall's VMU Savefile Icon Creator
+# Protofall's VMU LCD Icon Creator
 
 This program will take a 48 wide by 32 high input image and create a 1bpp binary that can easily be displayed on a VMU screen. The input image must be a PNG now since I changed over to using libPNG for image reading (And writing)
 
