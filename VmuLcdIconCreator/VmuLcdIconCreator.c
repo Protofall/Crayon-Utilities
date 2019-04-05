@@ -58,6 +58,12 @@ void getARGB(uint8_t (*argb)[4], uint32_t extracted){
 	return;
 }
 
+//Takes an rgba8888 pixel and a monochrome value and updates the pixel
+void update_monochrome(uint32_t * texel, uint8_t monochrome){
+	(*texel) = (monochrome << 24) + (monochrome << 16) + (monochrome << 8) + ((*texel) & 0xFF);
+	return;
+}
+
 #define LUMA_CALC 2	//Change this if you want a different luma calc, this one is my favourite
 
 //Converts all pixels to a monochrome colour
@@ -68,7 +74,7 @@ int convert_to_monochrome(uint32_t * buffer_mono){
 	uint8_t height = BIN_HEIGHT;
 	uint8_t argb[4];
 	uint32_t extracted;
-	float monochrome;
+	float monochrome;	//255 is white, 0 is black
 	for(int i = 0; i < height * width; i++){
 		getARGB(&argb, buffer_mono[i]);
 
@@ -83,73 +89,62 @@ int convert_to_monochrome(uint32_t * buffer_mono){
 		#elif LUMA_CALC == 1
 			monochrome = ((0.299*argb[1]) + (0.587*argb[2]) + (0.114*argb[3]));
 		#elif LUMA_CALC == 2
-			monochrome = sqrt((0.299*pow(argb[1], 2)) + (0.587*pow(argb[2], 2)) + (0.114*pow(argb[3], 2)));
+			monochrome = sqrt((0.299*pow(argb[1], 2)) + (0.587*pow(argb[2], 2)) + (0.114*pow(argb[3], 2)));	//Gives more accurate monochrome
 		#endif
 
-		//Keep in mind this is in the RGBA format
-		if(monochrome < 255/2){
-			buffer_mono[i] = 0x000000FF;	//Black
-		}
-		else{
-			// buffer_mono[i] = 0xFFFFFFFF;	//White
-			buffer_mono[i] = ((int)monochrome << 24) + ((int)monochrome << 16) + ((int)monochrome << 8) + 0xFF;	//Gives more accurate monochrome
-		}
+		update_monochrome(&buffer_mono[i], (int)monochrome);
 	}
 
 	return 0;
 }
 
-int reduce_colour_range(uint32_t * buffer_mono, uint16_t frame_count){
-	return 0;
-}
-
-int make_png(char * dest, uint32_t * buffer_mono, uint8_t scale){
-	png_details_t p_det;
-	p_det.width = BIN_WIDTH * scale;
-	p_det.height = BIN_HEIGHT * scale;
-
-	p_det.color_type = PNG_COLOR_MASK_COLOR + PNG_COLOR_MASK_ALPHA;	//= 2 + 4 = 6. They describe the color_type field in png_info
-	p_det.bit_depth = 8;	//rgba8888, can be 1, 2, 4, 8, or 16 bits/channel (from IHDR)
-
-	//Allocate space
-	p_det.row_pointers = (png_bytep*)malloc(sizeof(png_bytep) * p_det.height * scale);
-	if(!p_det.row_pointers){printf("Ran out of memory. Terminating now\n"); return 1;}
-	for(int y = 0; y < p_det.height; y++){
-		p_det.row_pointers[y] = (png_byte*)malloc(sizeof(png_byte) * p_det.width * scale * 4);	//4 for each channel
-		if(!p_det.row_pointers[y]){
-			for(int i = 0; i < y; i++){	//Free the rest of the array
-				free(p_det.row_pointers[i]);
-			}
-			free(p_det.row_pointers);
-			printf("Ran out of memory. Terminating now\n");
-			return 1;
-		}
+//Checks to see if "val" is closer to bound 1 or 2
+float closest(float bound1, float bound2, uint32_t val){
+	if(bound1 < 0){
+		bound1 = 0;
+	}
+	if(bound2 < 0){
+		bound2 = 0;
 	}
 
-	//x/y loop over the colours, v/w handle the upscale drawing
-	uint32_t colour;
-	for(int y = 0; y < BIN_HEIGHT; y++){
-		for(int x = 0; x < BIN_WIDTH; x++){
-			colour = buffer_mono[((y * BIN_WIDTH) + x)];
-			for(int w = 0; w < scale; w++){
-				for(int v = 0; v < scale; v++){
-					int x1 = (x * scale) + v;
-					int y1 = (y * scale) + w;
-					png_bytep px = get_pixel(&p_det, x1, y1);
-
-					px[0] = bit_extracted(colour, 8, 24);
-					px[1] = bit_extracted(colour, 8, 16);
-					px[2] = bit_extracted(colour, 8, 8);
-					px[3] = bit_extracted(colour, 8, 0);
-				}
-			}
-		}
+	float a = fabs(bound1-val);
+	float b = fabs(bound2-val);
+	if(a < b){
+		return bound1;
 	}
-	write_png_file(dest, &p_det);	//Free-s the struct once drawn
-	return 0;
+
+	return bound2;
 }
 
-int make_binary(char * dest, uint32_t * buffer_mono, uint16_t frames){
+//Currently this just re-reduces to 1BPP
+void reduce_colour_range(uint32_t * buffer_mono, uint8_t frame_count){
+	//frame_count 3. 0, 85, 170 and 255
+	//Mine is: 0, 128, 192, 255. This would default to 0, 170 and 255 (170-128 < 128-85)
+	//frame_count 4. 0, 64, 128, 192, 255. This would give all colours for Mine easily (frame 3 and 4 would be the same)
+
+	frame_count = 1;	//Until the binary creator function has support for multiple frames, we must limit it
+
+	uint16_t colours = frame_count + 1;	//+1 because we have one extra colour, no colour
+	double step = 255.0/(double)frame_count;	//Always ranging between 255 and 1
+	float temp1, temp2;
+	uint8_t temp3, temp4;
+
+	float a, b;
+	uint8_t c, d;
+	for(int i = 0; i < BIN_WIDTH * BIN_HEIGHT; i++){
+		c = buffer_mono[i] >> 24;	//Get the monochrome value
+		float a = c - fmod(c,step);
+		float b = a + step;
+		a = ceil(a);
+		b = ceil(b);
+		uint8_t d = closest(a, b, c);
+
+		update_monochrome(&buffer_mono[i], d);
+	}
+	return;
+}
+
+int make_binary(char * dest, uint32_t * buffer_mono, uint8_t frame_count){
 	int x = BIN_WIDTH;
 	int y = BIN_HEIGHT;
 	FILE * write_ptr = fopen(dest,"wb");  // w for write, b for binary
@@ -157,26 +152,23 @@ int make_binary(char * dest, uint32_t * buffer_mono, uint16_t frames){
 		fprintf(stderr, "\nFile %s cannot be opened\n", dest);
 		return 1;
 	}
-	uint32_t * traversal = buffer_mono;
-	uint32_t extracted;
+
+	// uint32_t extracted;
 	uint8_t buffer[6];	//We need to output in Little-endian so we have to store 6 bytes per row and then write to the file
 	uint8_t buffer_count = 0;
 
-	uint8_t argb[4];
 	for(int i = 0; i < x * y / 8; i++){	//We have a for-loop that goes 8 times within this loop
 		buffer[5- buffer_count] = 0;
 
 		//Need to pack 8 pixels into one byte (One element of buffer[])
 		for(int j = 0; j < 8; j++){
-			memcpy(&extracted, traversal, sizeof(uint32_t));	//Extracts all 4 bytes (In RGBA8888 format)
+			// memcpy(&extracted, buffer_mono, sizeof(uint32_t));
 
-			getARGB(&argb, extracted);	//Also converts from RGBA8888 to ARGB8888
-
-			//If the pixel has enough alpha and the colours are "strong enough" then add a black pixel
-			if(argb[0] > (255/2) && argb[1] + argb[2] + argb[3] < (255/2) * 3){
-				buffer[5 - buffer_count] |= (1 << j);	//VMU icons use 0 for no pixel and 1 for pixel
+			//If pixel is black, set pixel to true
+			if(buffer_mono[0] == 0xFF){
+				buffer[5 - buffer_count] |= (1 << j);
 			}
-			traversal++;
+			buffer_mono++;
 		}
 
 		buffer_count++;
@@ -195,8 +187,9 @@ int make_binary(char * dest, uint32_t * buffer_mono, uint16_t frames){
 
 void invalid_input(){
 	printf("\nWrong number of arguments provided. This is the format\n");
-	printf("./VmuLcdIconCreator --input [png_filename] --output-binary [filename] *--invert *--output-png [filename] *--scale\n\n");
-	printf("Invert is optional, this will flip the vertical axis of the image. Enable if using it in a Dreamcast controller\n");	
+	printf("./VmuLcdIconCreator --input [png_filename] --output-binary [filename] *--invert *--output-png [filename] *--scale *--frames [frame count]\n\n");
+	printf("Invert is optional, this will flip the vertical axis of the image. Enable if using it in a Dreamcast controller\n");
+	printf("Frames is the number of LCD icon frames the binary will contain. By default its 1 and it can go up to 255 (More info in readme)\n");
 	printf("Png output is optional and just gives you a preview of the monochrome image that should be produced\n");
 	printf("Note you can only have 1 png file, the PNG must be 48 pixels wide and 32 pixels high\n");
 	printf("Scale is optional, this will increase the size of the output PNG by the factor squared provided. Default is 1\n");
@@ -218,7 +211,7 @@ int main(int argC, char *argV[]){
 	bool flag_invert = false;
 	uint8_t input_image_index = 0;
 	uint8_t output_binary_index = 0;
-	uint16_t frame_count = 1;
+	uint8_t frame_count = 1;
 	uint8_t scale = 1;
 	uint8_t output_png_index = 0;
 	for(int i = 1; i < argC; i++){
@@ -242,6 +235,9 @@ int main(int argC, char *argV[]){
 			}
 			flag_frames = true;
 			frame_count = atoi(argV[i]);
+			if(frame_count < 1 || frame_count > 255){
+				invalid_input();
+			}
 		}
 		else if(string_equals(argV[i], "--scale")){
 			if(++i >= argC){
@@ -268,10 +264,17 @@ int main(int argC, char *argV[]){
 	uint32_t * buffer_mono = NULL;
 
 	load_png(argV[input_image_index], &buffer_mono, flag_invert);
-	make_binary(argV[output_binary_index], buffer_mono, frame_count);
 	convert_to_monochrome(buffer_mono);
-	reduce_colour_range(buffer_mono, frame_count);
-	if(flag_output_png){make_png(argV[output_png_index], buffer_mono, scale);}
+	reduce_colour_range(buffer_mono, frame_count);	//Currently assumes frame_count = 1;
+	make_binary(argV[output_binary_index], buffer_mono, frame_count);
+	if(flag_output_png){
+		png_details_t p_det;
+		if(rgba8888_to_png_details(buffer_mono, BIN_HEIGHT, BIN_WIDTH, scale, &p_det)
+			|| write_png_file(argV[output_png_index], &p_det)){
+			printf("Failed to create PNG\n");
+			return 1;
+		}
+	}
 
 	free(buffer_mono);
 

@@ -85,7 +85,7 @@ void free_png_texture_buffer(png_details_t * p_det){
 	return;
 }
 
-void write_png_file(char *filename, png_details_t * p_det){
+uint8_t write_png_file(char *filename, png_details_t * p_det){
 	int y;
 	FILE *fp = NULL;
 	png_structp png_ptr = NULL;
@@ -93,18 +93,18 @@ void write_png_file(char *filename, png_details_t * p_det){
 
 	//Open file for writing (binary mode)
 	fp = fopen(filename, "wb");
-	if(!fp){abort();}
+	if(!fp){return 1;}
 
 	//Initialize write structure
 	png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-	if(!png_ptr){abort();}
+	if(!png_ptr){fclose(fp); return 2;}
 
 	//Initialize info structure
 	info_ptr = png_create_info_struct(png_ptr);
-	if(!info_ptr){abort();}
+	if(!info_ptr){fclose(fp); return 3;}
 
 	//Setup Exception handling
-	if(setjmp(png_jmpbuf(png_ptr))){abort();}
+	if(setjmp(png_jmpbuf(png_ptr))){fclose(fp); return 4;}
 
 	png_init_io(png_ptr, fp);
 
@@ -133,6 +133,7 @@ void write_png_file(char *filename, png_details_t * p_det){
 	}
 
 	fclose(fp);
+	return 0;
 }
 
 // k lots of 1's bitwise and with your number moved right by p bits
@@ -144,18 +145,18 @@ png_bytep get_pixel(png_details_t * p_det, int x, int y){
 	return &(p_det->row_pointers[y][x * 4]);
 }
 
-uint8_t rgba8888_to_png_details(uint32_t * pixel_data, int height, int width, png_details_t * p_det){
-	p_det->height = height;
-	p_det->width = width;
+uint8_t rgba8888_to_png_details(uint32_t * pixel_data, int height, int width, uint8_t scale, png_details_t * p_det){
+	p_det->width = width * scale;
+	p_det->height = height * scale;
 
 	p_det->color_type = PNG_COLOR_MASK_COLOR + PNG_COLOR_MASK_ALPHA;	//= 2 + 4 = 6. They describe the color_type field in png_info
 	p_det->bit_depth = 8;	//rgba8888, can be 1, 2, 4, 8, or 16 bits/channel (from IHDR)
 
 	//Allocate space
-	p_det->row_pointers = (png_bytep*)malloc(sizeof(png_bytep) * p_det->height);
+	p_det->row_pointers = (png_bytep*)malloc(sizeof(png_bytep) * p_det->height * scale);
 	if(!p_det->row_pointers){printf("Ran out of memory. Terminating now\n"); return 1;}
 	for(int y = 0; y < p_det->height; y++){
-		p_det->row_pointers[y] = (png_byte*)malloc(sizeof(png_byte) * p_det->width * 4);
+		p_det->row_pointers[y] = (png_byte*)malloc(sizeof(png_byte) * p_det->width * scale * 4);	//4 for each channel
 		if(!p_det->row_pointers[y]){
 			for(int i = 0; i < y; i++){	//Free the rest of the array
 				free(p_det->row_pointers[i]);
@@ -166,20 +167,28 @@ uint8_t rgba8888_to_png_details(uint32_t * pixel_data, int height, int width, pn
 		}
 	}
 
-	for(int y = 0; y < p_det->height; y++){
-		for(int x = 0; x < p_det->width; x++){
+	//x/y loop over the colours, v/w handle the upscale drawing
+	uint32_t colour;
+	for(int y = 0; y < height; y++){
+		for(int x = 0; x < width; x++){
+			colour = pixel_data[((y * width) + x)];
+			for(int w = 0; w < scale; w++){
+				for(int v = 0; v < scale; v++){
+					int x1 = (x * scale) + v;
+					int y1 = (y * scale) + w;
+					png_bytep px = get_pixel(p_det, x1, y1);
 
-			// png_bytep px = &(p_det->row_pointers[y][x * 4]);
-			png_bytep px = get_pixel(p_det, x, y);
-			// printf("%4d, %4d = RGBA(%3d, %3d, %3d, %3d)\n", x, y, px[0], px[1], px[2], px[3]);
-			px[0] = bit_extracted(pixel_data[(y * width) + x], 8, 24);	//R
-			px[1] = bit_extracted(pixel_data[(y * width) + x], 8, 16);	//G
-			px[2] = bit_extracted(pixel_data[(y * width) + x], 8, 8);	//B
-			px[3] = bit_extracted(pixel_data[(y * width) + x], 8, 0);	//A
+					px[0] = bit_extracted(colour, 8, 24);
+					px[1] = bit_extracted(colour, 8, 16);
+					px[2] = bit_extracted(colour, 8, 8);
+					px[3] = bit_extracted(colour, 8, 0);
+				}
+			}
 		}
 	}
 	return 0;
 }
+
 
 //from pngconf.h
 
