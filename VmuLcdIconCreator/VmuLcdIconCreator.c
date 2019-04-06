@@ -122,8 +122,6 @@ void reduce_colour_range(uint32_t * buffer_mono, uint8_t frame_count){
 	//Mine is: 0, 128, 192, 255. This would default to 0, 170 and 255 (170-128 < 128-85)
 	//frame_count 4. 0, 64, 128, 192, 255. This would give all colours for Mine easily (frame 3 and 4 would be the same)
 
-	frame_count = 1;	//Until the binary creator function has support for multiple frames, we must limit it
-
 	uint16_t colours = frame_count + 1;	//+1 because we have one extra colour, no colour
 	double step = 255.0/(double)frame_count;	//Always ranging between 255 and 1
 	float temp1, temp2;
@@ -147,36 +145,42 @@ void reduce_colour_range(uint32_t * buffer_mono, uint8_t frame_count){
 int make_binary(char * dest, uint32_t * buffer_mono, uint8_t frame_count){
 	int x = BIN_WIDTH;
 	int y = BIN_HEIGHT;
-	FILE * write_ptr = fopen(dest,"wb");  // w for write, b for binary
+	FILE * write_ptr = fopen(dest,"wb");
 	if(!write_ptr){
 		fprintf(stderr, "\nFile %s cannot be opened\n", dest);
 		return 1;
 	}
 
-	// uint32_t extracted;
 	uint8_t buffer[6];	//We need to output in Little-endian so we have to store 6 bytes per row and then write to the file
 	uint8_t buffer_count = 0;
+	uint8_t value;
+	double step = 255.0/(double)frame_count;	//Always ranging between 255 and 1
+	for(int h = 0; h < frame_count; h++){
+		for(int i = 0; i < x * y / 8; i++){	//We have a for-loop that goes 8 times within this loop
+			buffer[5 - buffer_count] = 0;
 
-	for(int i = 0; i < x * y / 8; i++){	//We have a for-loop that goes 8 times within this loop
-		buffer[5- buffer_count] = 0;
-
-		//Need to pack 8 pixels into one byte (One element of buffer[])
-		for(int j = 0; j < 8; j++){
-			// memcpy(&extracted, buffer_mono, sizeof(uint32_t));
-
-			//If pixel is black, set pixel to true
-			if(buffer_mono[0] == 0xFF){
-				buffer[5 - buffer_count] |= (1 << j);
+			//Need to pack 8 pixels into one byte (One element of buffer[])
+			for(int j = 0; j < 8; j++){
+				//If pixel is black, set pixel to true
+				value = (buffer_mono[(8 * i) + j] >> 24);
+				float test = closest(h*step, (h+1)*step, value);
+				if(h*step >= test){
+					buffer[5 - buffer_count] |= (1 << j);
+				}
 			}
-			buffer_mono++;
-		}
+			//0, 128, 192, 255.
+			//h == 0, bound = 0
+			//h == 1, bound = 63.75
+			//h == 2, bound = 127.5
+			//h == 3, bound = 191.25
 
-		buffer_count++;
+			buffer_count++;
 
-		//When we've read a row, write to file
-		if(buffer_count == 6){
-			fwrite(buffer, sizeof(uint8_t), sizeof(buffer), write_ptr);
-			buffer_count = 0;
+			//When we've read a row, write to file
+			if(buffer_count == 6){
+				fwrite(buffer, sizeof(uint8_t), sizeof(buffer), write_ptr);
+				buffer_count = 0;
+			}
 		}
 	}
 

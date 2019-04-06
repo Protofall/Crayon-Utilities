@@ -18,7 +18,7 @@ void set_pixel(uint32_t * texel, uint8_t value){
 int read_binary(char * dest, uint32_t * texture, uint8_t frame_count){
 	int x = BIN_WIDTH;
 	int y = BIN_HEIGHT;
-	uint16_t size_frame = BIN_HEIGHT * BIN_WIDTH / 8;
+	uint16_t size_frame = BIN_HEIGHT * BIN_WIDTH / 8;	//In bytes
 
 	FILE * fp = fopen(dest,"rb");
 	if(!fp){
@@ -29,7 +29,7 @@ int read_binary(char * dest, uint32_t * texture, uint8_t frame_count){
 	// printf("%d %d %d %d\n", size_frame, frame_count, BIN_HEIGHT, BIN_WIDTH);
 	uint8_t buffer;
 	int index;
-	for(int i = 0; i < size_frame & frame_count; i++){	//We have a for-loop that goes 8 times within this loop
+	for(int i = 0; i < size_frame * frame_count; i++){	//We have a for-loop that goes 8 times within this loop
 		fread(&buffer, sizeof(uint8_t), 1, fp);
 
 		//Unpack the 8 pixels from the one byte
@@ -85,6 +85,7 @@ int main(int argC, char *argV[]){
 			output_index = i;
 		}
 		if(string_equals(argV[i], "--mode")){
+			printf("--mode is currently unused\n");
 			if(++i >= argC){
 				invalid_input();
 			}
