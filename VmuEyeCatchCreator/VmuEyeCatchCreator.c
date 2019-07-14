@@ -10,7 +10,7 @@
 
 void invalid_input(){
 	printf("\nWrong number of arguments provided. This is the format\n");
-	printf("./VmuSfIconCreator --input-image [png_filename] --output-binary [filename] --type [1 - 3] *--preview [filename]\n\n");
+	printf("./VmuEyeCatchCreator --input-image [png_filename] --output-binary [filename] --type [1 - 3] *--preview [filename]\n\n");
 	printf("Note you can only have 1 png file\nThe PNG must be 72 pixels wide and 56 pixels high\n");
 	printf("Mode must be there with a value of 1, 2 or 3.\n");
 	printf("\t1 is a raw argb4444 binary (15.75 Blocks)\n");
