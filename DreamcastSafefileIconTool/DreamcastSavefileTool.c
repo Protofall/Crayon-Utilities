@@ -10,7 +10,7 @@
 
 void invalid_input(){
 	printf("\nWrong number of arguments provided. This is the format\n");
-	printf("./VmuSfIconCreator --input-image [png_filename_1] [png_filename_2] (etc.) --output-image [filename] -- output-palette [filename] --preview [filename]\n\n");
+	printf("./DreamcastSavefileTool --input-image [png_filename_1] [png_filename_2] (etc.) --output-image [filename] -- output-palette [filename] --preview [filename]\n\n");
 	printf("Note you need at least 1 png file\nSuccessing PNGs will be vertically appended in chronological order\n");
 	printf("All source PNGs must be 32 pixels wide and be \"A multiple of 32\" pixels height\n");
 	printf("Preview is optional and just gives you a preview of the binary\n");

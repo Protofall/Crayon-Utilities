@@ -1,5 +1,5 @@
 
-EXE = VmuLcdIconCreator
+EXE = VmuLcdBitmapTool
 EXT =
 CPPFLAGS = -std=gnu++11 -lpng -lm
 CFLAGS = -lpng -lm -g
