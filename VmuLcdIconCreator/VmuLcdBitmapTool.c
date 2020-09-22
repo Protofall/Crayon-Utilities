@@ -9,7 +9,7 @@
 #define BIN_WIDTH 48
 #define BIN_HEIGHT 32
 
-//Account for invert here
+// Account for invert here
 int load_png(char * source, uint32_t ** buffer_mono, bool invert){
 	uint16_t buff_width = BIN_WIDTH;
 	uint16_t buff_height = BIN_HEIGHT;
@@ -23,11 +23,13 @@ int load_png(char * source, uint32_t ** buffer_mono, bool invert){
 
 	if(read_png_file(source, &p_det)){printf("File %s couldn't be read. Terminating now\n", source); return 2;}
 	if(p_det.width != buff_width){
-		printf("%s has incorrect width\nWidth should be 72\nThis image's width is %d\n", source, p_det.width);
-		return 3;
+		printf("%s has incorrect width. Width should be %d, but this image's width is %d\n", source, buff_width, p_det.width);
+		free(buffer_mono);
+		return 2;
 	}
 	if(p_det.height != buff_height){
-		printf("%s has incorrect height\nHeight should be 56\nThis image's height is %d\n", source, p_det.height);
+		printf("%s has incorrect height. Height should be %d, but this image's height is %d\n", source, buff_height, p_det.height);
+		free(buffer_mono);
 		return 3;
 	}
 
@@ -90,6 +92,8 @@ int convert_to_monochrome(uint32_t * buffer_mono){
 			monochrome = ((0.299*argb[1]) + (0.587*argb[2]) + (0.114*argb[3]));
 		#elif LUMA_CALC == 2
 			monochrome = sqrt((0.299*pow(argb[1], 2)) + (0.587*pow(argb[2], 2)) + (0.114*pow(argb[3], 2)));	//Gives more accurate monochrome
+		#else
+			#error LUMA_CALC undefined!
 		#endif
 
 		update_monochrome(&buffer_mono[i], (int)monochrome);
@@ -191,7 +195,7 @@ int make_binary(char * dest, uint32_t * buffer_mono, uint8_t frame_count){
 
 void invalid_input(){
 	printf("\nWrong number of arguments provided. This is the format\n");
-	printf("./VmuLcdIconCreator --input [png_filename] --output-binary [filename] *--invert *--output-png [filename] *--scale *--frames [frame count]\n\n");
+	printf("./VmuLcdIconCreator --input [png_filename] --output-binary [filename] *--invert *--png-preview [filename] *--scale [scale factor] *--frames [frame count]\n\n");
 	printf("Invert is optional, this will flip the vertical axis of the image. Enable if using it in a Dreamcast controller\n");
 	printf("Frames is the number of LCD icon frames the binary will contain. By default its 1 and it can go up to 255 (More info in readme)\n");
 	printf("Png output is optional and just gives you a preview of the monochrome image that should be produced\n");
@@ -219,21 +223,21 @@ int main(int argC, char *argV[]){
 	uint8_t scale = 1;
 	uint8_t output_png_index = 0;
 	for(int i = 1; i < argC; i++){
-		if(string_equals(argV[i], "--input")){
+		if(string_equals(argV[i], "--input") || string_equals(argV[i], "-i")){
 			if(++i >= argC){
 				invalid_input();
 			}
 			flag_input_image = true;
 			input_image_index = i;
 		}
-		else if(string_equals(argV[i], "--output-binary")){
+		else if(string_equals(argV[i], "--output-binary") || string_equals(argV[i], "-o")){
 			if(++i >= argC){
 				invalid_input();
 			}
 			flag_output_binary = true;
 			output_binary_index = i;
 		}
-		if(string_equals(argV[i], "--frames")){
+		if(string_equals(argV[i], "--frames") || string_equals(argV[i], "-f")){
 			if(++i >= argC){
 				invalid_input();
 			}
@@ -243,21 +247,21 @@ int main(int argC, char *argV[]){
 				invalid_input();
 			}
 		}
-		else if(string_equals(argV[i], "--scale")){
+		else if(string_equals(argV[i], "--scale") || string_equals(argV[i], "-s")){
 			if(++i >= argC){
 				invalid_input();
 			}
 			flag_scale = true;
 			scale = atoi(argV[i]);
 		}
-		else if(string_equals(argV[i], "--output-png")){
+		else if(string_equals(argV[i], "--png-preview") || string_equals(argV[i], "-p")){
 			if(++i >= argC){
 				invalid_input();
 			}
 			flag_output_png = true;
 			output_png_index = i;
 		}
-		else if(string_equals(argV[i], "--invert")){
+		else if(string_equals(argV[i], "--invert") || string_equals(argV[i], "--inv")){
 			flag_invert = true;
 		}
 	}

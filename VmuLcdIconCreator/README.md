@@ -7,9 +7,11 @@ Dependencies:
 + libPNG
 
 Usage:
-`./VmuLcdBitmapTool --input [png_filename] --output-binary [filename] *--invert *--output-png [filename] *--scale  *--frames [frame count]`
+`./VmuLcdBitmapTool -i [png_filename] -o [filename] *--inv *-p [filename] *-s [scale factor]  *-f [frame count]`
 
-The `--invert` parameter is optional, this will flip the vertical axis of the image. If writting a DC program that renders to the VMU then you'll want to set this flag (Since the VMU is upside down in the controller), but if you wanted to use this for a VMU in hand-held mode then you omit this flag.
+The `--invert`/`--inv` parameter is optional, this will flip the vertical axis of the image. If writting a DC program that renders to the VMU then you'll want to set this flag (Since the VMU is upside down in the controller), but if you wanted to use this for a VMU in hand-held mode then you omit this flag.
 
-Frames is the number of LCD icon frames the binary will contain. By default its 1 and it can go up to 255.
+`--scale`/`-s` will affect the output png image size, by default it is 1
+
+`--frames`/`-f` is the number of LCD icon frames the binary will contain. By default its 1 and it can go up to 255.
 
