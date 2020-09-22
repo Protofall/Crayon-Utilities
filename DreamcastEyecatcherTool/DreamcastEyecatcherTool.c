@@ -288,9 +288,9 @@ int8_t reduce_colours(uint32_t * texture, uint16_t width, uint16_t height, uint1
 		goto cleanup;
 	}
 
-	printf("WARNING: More than %d colours between all source images.\n", colour_limit);
-	printf("Performing colour-reduction process. Result may be undesireable\n");
-	printf("since the algorithm isn't perfect so I recommend making your own\n");
+	printf("WARNING: More than %d colours between all source images. ", colour_limit);
+	printf("Performing colour-reduction process. Result may be undesireable ");
+	printf("since the algorithm isn't perfect so I recommend making your own ");
 	printf("%d-colour image and then run it through this program again for better results.\n", colour_limit);
 
 	//Perform K-means with "colour_limit" centroids
@@ -478,28 +478,29 @@ int main(int argC, char ** argV){
 	uint8_t mode = 0;
 	uint8_t preview_index = 0;
 	for(int i = 1; i < argC; i++){
-		if(string_equals(argV[i], "--input-image")){
+		if(string_equals(argV[i], "--input-image") || string_equals(argV[i], "-i")){
 			if(++i >= argC){
 				invalid_input();
 			}
 			flag_input_image = true;
 			input_image_index = i;
 		}
-		else if(string_equals(argV[i], "--output-binary")){
+		else if(string_equals(argV[i], "--output-binary") || string_equals(argV[i], "-o")){
 			if(++i >= argC){
 				invalid_input();
 			}
 			flag_output_image = true;
 			output_image_index = i;
 		}
-		else if(string_equals(argV[i], "--type") || string_equals(argV[i], "--mode")){
+		else if(string_equals(argV[i], "--type") || string_equals(argV[i], "--mode") ||
+			string_equals(argV[i], "-t") || string_equals(argV[i], "-m")){
 			if(++i >= argC){
 				invalid_input();
 			}
 			flag_mode = true;
 			mode = atoi(argV[i]);
 		}
-		else if(string_equals(argV[i], "--preview")){
+		else if(string_equals(argV[i], "--preview") || string_equals(argV[i], "-p")){
 			if(++i >= argC){
 				invalid_input();
 			}

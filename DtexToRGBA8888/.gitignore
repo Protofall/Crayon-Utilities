@@ -1,5 +1,6 @@
-VmuLcdBitmapTool
 *.bin
 *.png
+*.o
+DtexToRGBA8888
 .sconsign.dblite
 

@@ -6,7 +6,8 @@ Dependencies:
 
 + libpng
 + math
++ scons (Build language, use pip3)
 
-Run `make` to compile the program.
+Run `scons` to compile the program.
 Run `./DreamcastEyecatcherTool --input-image [png_filename] --output-binary [filename] --mode [1 - 3] --preview [filename]` to create eyecatcher binary. You must provide input png and output binary paths
 

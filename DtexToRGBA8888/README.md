@@ -8,15 +8,15 @@ Dependencies:
 
 + texconv (Only for generating example DTEX files)
 + libpng (Only for PNG output option)
++ scons (Build language, use pip3)
 
-Run `make` to compile a bunch of dtex files and the program itself.
+Run `scons` to compile a bunch of dtex files and the program itself.
 Run `./DtexToRGBA8888 [dtex_filename] *[--binary] [rgba8888_binary_filename] *[--png] [png_filename]` to convert a file. You must provide either a binary or a png path
 
 ### Credits
 
-Jamo made the `get_twiddled_index()` funtion. Trying to figure out how to reverse the "Backwards-N" twiddle layout was boggling my mind so I'm very thankful for his help.
+JamoHTP made the `get_twiddled_index()` funtion. Trying to figure out how to reverse the "Backwards-N" twiddle layout was boggling my mind so I'm very thankful for his help.
 
 Airofoil made the `drawfy.png` sprite
 
 People in the Dreamcast scene especially MrNeo240 for explaining some complex concepts and pointing me in the right direction
-

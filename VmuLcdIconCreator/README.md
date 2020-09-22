@@ -5,6 +5,7 @@ This program will take a 48 wide by 32 high input image and create a 1bpp binary
 Dependencies:
 
 + libPNG
++ scons (Build language, use pip3)
 
 Usage:
 `./VmuLcdBitmapTool -i [png_filename] -o [filename] *--inv *-p [filename] *-s [scale factor]  *-f [frame count]`

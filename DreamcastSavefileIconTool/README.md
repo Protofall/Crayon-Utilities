@@ -6,9 +6,10 @@ Dependencies:
 
 + libpng
 + math
++ scons (Build language, use pip3)
 
-Run `make` to compile the program.
-Run `./DreamcastSavefileTool --input-image [png_filename_1] [png_filename_2] (etc.) --output-image [filename] -- output-palette [filename] --preview [filename]` to create the image and palette binaries. You must provide input and output-binary paths
+Run `scons` to compile the program.
+Run `./DreamcastSavefileIconTool --input-image [png_filename_1] [png_filename_2] (etc.) --output-image [filename] -- output-palette [filename] --preview [filename]` to create the image and palette binaries. You must provide input and output-binary paths
 
 ### Credits
 

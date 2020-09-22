@@ -10,7 +10,7 @@
 
 void invalid_input(){
 	printf("\nWrong number of arguments provided. This is the format\n");
-	printf("./DreamcastSavefileTool --input-image [png_filename_1] [png_filename_2] (etc.) --output-image [filename] -- output-palette [filename] --preview [filename]\n\n");
+	printf("./DreamcastSavefileIconTool --input-image [png_filename_1] [png_filename_2] (etc.) --output-image [filename] -- output-palette [filename] --preview [filename]\n\n");
 	printf("Note you need at least 1 png file\nSuccessing PNGs will be vertically appended in chronological order\n");
 	printf("All source PNGs must be 32 pixels wide and be \"A multiple of 32\" pixels height\n");
 	printf("Preview is optional and just gives you a preview of the binary\n");
@@ -290,9 +290,9 @@ int8_t reduce_colours(uint32_t * texture, uint16_t height, uint16_t * output_pal
 		goto cleanup;
 	}
 
-	printf("WARNING: More than %d colours between all source images.\n", colour_limit);
-	printf("Performing colour-reduction process. Result may be undesireable\n");
-	printf("since the algorithm isn't perfect so I recommend making your own\n");
+	printf("WARNING: More than %d colours between all source images. ", colour_limit);
+	printf("Performing colour-reduction process. Result may be undesireable ");
+	printf("since the algorithm isn't perfect so I recommend making your own ");
 	printf("%d-colour image and then run it through this program again for better results.\n", colour_limit);
 
 	//Perform K-means with "colour_limit" centroids
@@ -456,39 +456,45 @@ int main(int argC, char ** argV){
 	uint8_t output_image_index = 0;
 	uint8_t output_palette_index = 0;
 	uint8_t preview_index = 0;
+	bool currently_in = true;
 	for(int i = 1; i < argC; i++){
-		if(string_equals(argV[i], "--input-image")){
-			if(++i >= argC){
+		if(string_equals(argV[i], "--input-image") || string_equals(argV[i], "-i")){
+			if(i >= argC){
 				invalid_input();
 			}
 			flag_input_image = true;
-			input_image_index_start = i;
-			input_image_index_end = input_image_index_start;
-			while(i + 1 < argC && !string_equals(argV[i + 1], "--output-image") && !string_equals(argV[i + 1], "--output-palette")){
-				i++;
-				input_image_index_end = i;
-			}
+			input_image_index_start = i + 1;
+			input_image_index_end = input_image_index_start - 1;
 		}
-		else if(string_equals(argV[i], "--output-image")){
-			if(++i >= argC){
+		else if(string_equals(argV[i], "--output-image") || string_equals(argV[i], "-o")){
+			if(i + 1 >= argC || (input_image_index_start > input_image_index_end)){
 				invalid_input();
 			}
+			currently_in = false;
 			flag_output_image = true;
-			output_image_index = i;
+			output_image_index = ++i;
 		}
-		else if(string_equals(argV[i], "--output-palette")){
-			if(++i >= argC){
+		else if(string_equals(argV[i], "--output-palette") || string_equals(argV[i], "--out-pal")){
+			if(i + 1 >= argC || (input_image_index_start > input_image_index_end)){
 				invalid_input();
 			}
+			currently_in = false;
 			flag_output_palette = true;
-			output_palette_index = i;
+			output_palette_index = ++i;
 		}
-		else if(string_equals(argV[i], "--preview")){
-			if(++i >= argC){
+		else if(string_equals(argV[i], "--preview") || string_equals(argV[i], "-p")){
+			if(i + 1 >= argC || (input_image_index_start > input_image_index_end)){
 				invalid_input();
 			}
+			currently_in = false;
 			flag_preview = true;
-			preview_index = i;
+			preview_index = ++i;
+		}
+		else if(currently_in){
+			input_image_index_end++;
+		}
+		else{
+			invalid_input();
 		}
 	}
 
@@ -502,8 +508,8 @@ int main(int argC, char ** argV){
 	uint8_t * output_image = NULL;	//4BPP, Each element contains two texels
 	uint16_t output_palette[16];
 
-	uint8_t error = pngs_to_one_binary(input_image_index_start, input_image_index_end, output_image_index,
-		output_palette_index, &input_image, &height, argV);
+	uint8_t error = pngs_to_one_binary(input_image_index_start, input_image_index_end,
+		output_image_index, output_palette_index, &input_image, &height, argV);
 	if(error){
 		printf("Error occurred\n");
 		free(input_image);
