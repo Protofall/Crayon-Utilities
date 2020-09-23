@@ -8,7 +8,7 @@ Dependencies:
 + scons (Build language, use pip3)
 
 Usage:
-`./VmuLcdBitmapTool -i [png_filename] -o [filename] *--inv *-p [filename] *-s [scale factor]  *-f [frame count]`
+`./VmuLcdBitmapTool -i [png_filename] -o [filename] *--inv *-p [filename] *--pm [png mode] *-s [scale factor]  *-f [frame count]`
 
 The `--invert`/`--inv` parameter is optional, this will flip the vertical axis of the image. If writting a DC program that renders to the VMU then you'll want to set this flag (Since the VMU is upside down in the controller), but if you wanted to use this for a VMU in hand-held mode then you omit this flag.
 
@@ -16,3 +16,4 @@ The `--invert`/`--inv` parameter is optional, this will flip the vertical axis o
 
 `--frames`/`-f` is the number of LCD icon frames the binary will contain. By default its 1 and it can go up to 255.
 
+`--pm`/`--png-mode` is used for greyscale. It will either give you a png output of the greyscale preview (0) or just the entire binary with each individual frame (1). Default is 0.

@@ -1,3 +1,3 @@
 env = Environment()
-env.AppendUnique(LIBS = ['-lm', '-lpng'])
+env.AppendUnique(LIBS = ['-lm', '-lpng'], CFLAGS = ['-g'], CCFLAGS = ['-fdiagnostics-color=always'])
 env.Program('VmuLcdBitmapTool', Glob('*.c'))

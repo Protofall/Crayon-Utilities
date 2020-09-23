@@ -14,6 +14,7 @@ int load_png(char * source, uint32_t ** buffer_mono, bool invert){
 	uint16_t buff_width = BIN_WIDTH;
 	uint16_t buff_height = BIN_HEIGHT;
 	*buffer_mono = malloc(sizeof(uint32_t) * buff_width * buff_height);
+	// *buffer_mono = calloc(buff_width * buff_height, sizeof(uint32_t));
 	if(!(*buffer_mono)){printf("Ran out of memory. Terminating now\n"); return 1;}
 	uint32_t * current_texel = *buffer_mono;
 	if(invert){
@@ -146,60 +147,75 @@ void reduce_colour_range(uint32_t * buffer_mono, uint8_t frame_count){
 	return;
 }
 
-int make_binary(char * dest, uint32_t * buffer_mono, uint8_t frame_count){
-	int x = BIN_WIDTH;
-	int y = BIN_HEIGHT;
-	FILE * write_ptr = fopen(dest,"wb");
-	if(!write_ptr){
-		fprintf(stderr, "\nFile %s cannot be opened\n", dest);
-		return 1;
-	}
+double thresholdFunc(uint16_t top, uint16_t bottom){
+	return 255.0 * (top / (double)bottom);
+}
 
-	uint8_t buffer[6];	//We need to output in Little-endian so we have to store 6 bytes per row and then write to the file
-	uint8_t buffer_count = 0;
+void make_binary(uint8_t **bin, uint32_t *buffer_mono, uint8_t frame_count){
+	uint32_t x = BIN_WIDTH;
+	uint32_t y = BIN_HEIGHT;
+
+	// The size of a frame in bytes
+	uint32_t size_frame = x * y / 8;
+
+	//Divide by 8 because each byte contains 8 pixels
+	*bin = malloc(sizeof(uint8_t) * size_frame * frame_count);
+
+	uint8_t six_bytes[6] = {0};	//Contains 6 * 8 = 48 pixels
+
+	// For 1 frame, the threshold should be 127.5, but ATM its 255
+		// 2 frames would be 85, 170
+	// Then get the pixel value, see which value its closest to
+		// f_c = 1, points = 2, threshold = 127.5
+		// f_c = 2, points = 3, threshold = 170, 85
+
 	uint8_t value;
-	double step = 255.0/(double)frame_count;	//Always ranging between 255 and 1
-	for(int h = 0; h < frame_count; h++){
-		for(int i = 0; i < x * y / 8; i++){	//We have a for-loop that goes 8 times within this loop
-			buffer[5 - buffer_count] = 0;
+	uint32_t bin_pixel_id = 0;
+	uint16_t points = frame_count + 1;
+	double threshold;
+	double lower, upper;
+	for(int f = 0; f < frame_count; f++){	// Num frames
+		threshold = thresholdFunc(points - f - 1, points);
 
-			//Need to pack 8 pixels into one byte (One element of buffer[])
-			for(int j = 0; j < 8; j++){
-				//If pixel is black, set pixel to true
-				value = (buffer_mono[(8 * i) + j] >> 24);
-				float test = closest(h*step, (h+1)*step, value);
-				if(h*step >= test){
-					buffer[5 - buffer_count] |= (1 << j);
-				}
+		int b = 0;
+		int c = 0;
+		for(int a = 0; a < x * y; a++){	// Number of pixels in a frame
+			value = (buffer_mono[a] >> 24);	//This is the red channel, but its all grey so save as G and B
+
+			lower = thresholdFunc(points - f - 1, points);	//current one
+			upper = thresholdFunc(points - f - 1 + 1, points);
+			if(value <= lower){
+				six_bytes[5 - b] |= (1 << c);
 			}
-			//0, 128, 192, 255.
-			//h == 0, bound = 0
-			//h == 1, bound = 63.75
-			//h == 2, bound = 127.5
-			//h == 3, bound = 191.25
 
-			buffer_count++;
-
-			//When we've read a row, write to file
-			if(buffer_count == 6){
-				fwrite(buffer, sizeof(uint8_t), sizeof(buffer), write_ptr);
-				buffer_count = 0;
+			c++;
+			if(c == 8){
+				c = 0;
+				b++;
+				if(b == 6){
+					b = 0;
+					// Time to append the 6 bytes to the bin
+					for(int d = 0; d < 6; d++){
+						(*bin)[bin_pixel_id] = six_bytes[d];
+						six_bytes[d] = 0;
+						bin_pixel_id++;
+					}
+				}
 			}
 		}
 	}
 
-	fclose(write_ptr);
-
-	return 0;
+	return;
 }
 
 void invalid_input(){
 	printf("\nWrong number of arguments provided. This is the format\n");
-	printf("./VmuLcdIconCreator --input [png_filename] --output-binary [filename] *--invert *--png-preview [filename] *--scale [scale factor] *--frames [frame count]\n\n");
+	printf("./VmuLcdIconCreator --input [png_filename] --output-binary [filename] *--invert *--png-preview [filename] *--png-mode [mode] *--scale [scale factor] *--frames [frame count]\n\n");
 	printf("Invert is optional, this will flip the vertical axis of the image. Enable if using it in a Dreamcast controller\n");
 	printf("Frames is the number of LCD icon frames the binary will contain. By default its 1 and it can go up to 255 (More info in readme)\n");
 	printf("Png output is optional and just gives you a preview of the monochrome image that should be produced\n");
 	printf("Note you can only have 1 png file, the PNG must be 48 pixels wide and 32 pixels high\n");
+	printf("Png mode is used for greyscale. It will either give you a png output of the greyscale preview (0) or just the entire binary with each individual frame (1). Default is 0.\n");
 	printf("Scale is optional, this will increase the size of the output PNG by the factor squared provided. Default is 1\n");
 
 	exit(1);
@@ -222,6 +238,7 @@ int main(int argC, char *argV[]){
 	uint8_t frame_count = 1;
 	uint8_t scale = 1;
 	uint8_t output_png_index = 0;
+	uint8_t png_mode = 0;
 	for(int i = 1; i < argC; i++){
 		if(string_equals(argV[i], "--input") || string_equals(argV[i], "-i")){
 			if(++i >= argC){
@@ -237,7 +254,7 @@ int main(int argC, char *argV[]){
 			flag_output_binary = true;
 			output_binary_index = i;
 		}
-		if(string_equals(argV[i], "--frames") || string_equals(argV[i], "-f")){
+		else if(string_equals(argV[i], "--frames") || string_equals(argV[i], "-f")){
 			if(++i >= argC){
 				invalid_input();
 			}
@@ -261,25 +278,50 @@ int main(int argC, char *argV[]){
 			flag_output_png = true;
 			output_png_index = i;
 		}
+		else if(string_equals(argV[i], "--png-mode") || string_equals(argV[i], "--pm")){
+			if(++i >= argC){
+				invalid_input();
+			}
+			png_mode = atoi(argV[i]);
+		}
 		else if(string_equals(argV[i], "--invert") || string_equals(argV[i], "--inv")){
 			flag_invert = true;
 		}
 	}
-	if(!flag_input_image || !flag_output_binary){
+	if(!flag_input_image || !flag_output_binary || png_mode > 1){
 		invalid_input();
 	}
 
-	uint32_t * buffer_mono = NULL;
+	uint32_t *buffer_mono = NULL;
 
 	load_png(argV[input_image_index], &buffer_mono, flag_invert);
 	convert_to_monochrome(buffer_mono);
-	reduce_colour_range(buffer_mono, frame_count);	//Currently assumes frame_count = 1;
-	make_binary(argV[output_binary_index], buffer_mono, frame_count);
+	reduce_colour_range(buffer_mono, frame_count);	// Assumes frame_count = 1. Will still work, but could be done better
+	
+	// Create the binary
+	uint8_t *binary = NULL;
+	make_binary(&binary, buffer_mono, frame_count);
+
+	// Write the binary
+	FILE *write_ptr = fopen(argV[output_binary_index],"wb");
+	if(!write_ptr){
+		fprintf(stderr, "\nFile %s cannot be opened\n", argV[output_binary_index]);
+		free(binary);
+		return 1;
+	}
+	fwrite(binary, sizeof(uint8_t), BIN_HEIGHT * BIN_WIDTH * frame_count / 8, write_ptr);
+	fclose(write_ptr);
+
+	// Free it
+	free(binary);
+
+	// Write the PNG
 	if(flag_output_png){
 		png_details_t p_det;
 		if(rgba8888_to_png_details(buffer_mono, BIN_HEIGHT, BIN_WIDTH, scale, &p_det)
 			|| write_png_file(argV[output_png_index], &p_det)){
 			printf("Failed to create PNG\n");
+			free(buffer_mono);
 			return 1;
 		}
 	}
