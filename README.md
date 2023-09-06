@@ -1,3 +1,11 @@
+# IMPORTANT
+
+This repo is no longer active, instead I have moved to gitlab. Therefore I will no longer be updating this repository.
+
+To get the latest changes, go to: https://gitlab.com/Protofall/Crayon-Utilities
+
+-----------------------------------------
+
 # Crayon Utilities
 
 This repository contains a few programs I have worked on to aid in Dreamcast homebrew and to use Dreamcast specific formats (Like DTEX files) on modern systems and taking modern image types and converting them into specific binaries for use on the Dreamcast.
